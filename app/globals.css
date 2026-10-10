@@ -25,6 +25,11 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
+  --color-1: 238 84% 66%;
+  --color-2: 212 100% 60%;
+  --color-3: 198 94% 72%;
+  --color-4: 270 83% 78%;
+  --color-5: 319 75% 72%;
 }
 
 * { box-sizing: border-box; }
@@ -37,6 +42,39 @@ button:disabled { cursor: default; opacity: 0.65; }
 a { color: inherit; text-decoration: none; }
 a, button, input, select { touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.celian-gradient-text { position: relative; display: inline-flex; overflow: hidden; color: transparent; background: linear-gradient(110deg, #4f46e5 0%, #3178f6 32%, #a855f7 68%, #3178f6 100%); background-size: 220% auto; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; isolation: isolate; animation: celian-gradient-text 8s ease-in-out infinite alternate; }
+.celian-gradient-text-lights { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; mix-blend-mode: multiply; opacity: .72; }
+.celian-gradient-light { position: absolute; width: 30vw; height: 30vw; border-radius: 42% 30% 28% 36%; filter: blur(1rem); opacity: .42; animation: celian-gradient-border 8s ease-in-out infinite, celian-gradient-move 14s ease-in-out infinite alternate; }
+.celian-gradient-light.light-one { top: -50%; left: -5%; background: hsl(var(--color-1)); }
+.celian-gradient-light.light-two { top: 0; right: -10%; background: hsl(var(--color-2)); animation-delay: -3s; }
+.celian-gradient-light.light-three { bottom: -25%; left: 5%; background: hsl(var(--color-3)); animation-delay: -6s; }
+.celian-gradient-light.light-four { right: -5%; bottom: -45%; background: hsl(var(--color-5)); animation-delay: -9s; }
+@keyframes celian-gradient-border { 0%, 100% { border-radius: 42% 30% 28% 36%; } 50% { border-radius: 62% 22% 46% 70%; } }
+@keyframes celian-gradient-move { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(12%, 8%, 0) scale(1.08); } }
+@keyframes celian-gradient-text { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+.liquid-metal-button { position: relative; display: inline-block; flex: 0 0 auto; border-radius: 999px; perspective: 1000px; }
+.liquid-metal-button-layer { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.liquid-metal-button-label { z-index: 3; display: flex; align-items: center; justify-content: center; gap: 6px; color: #c3d1f3; font-size: 12px; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); transform: translateZ(20px); }
+.liquid-metal-button-inner { z-index: 2; top: 2px; left: 2px; margin: 0; background: linear-gradient(180deg, #1e2c4b 0%, #0a1020 100%); box-shadow: inset 0 1px 2px rgba(255, 255, 255, .08); transform: translateZ(10px); }
+.liquid-metal-button-shader { z-index: 1; overflow: hidden; transform: translateZ(0); box-shadow: 0 0 0 1px rgba(111, 142, 205, .45), 0 14px 24px rgba(29, 53, 99, .18); }
+.liquid-metal-button-shader > span, .liquid-metal-button-shader canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; border-radius: inherit; }
+.liquid-metal-button-hit-area { position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; padding: 0; color: transparent; background: transparent; border: 0; border-radius: inherit; cursor: pointer; }
+.liquid-metal-button-hit-area[data-pressed="true"] { transform: translateY(1px) scale(.98); }
+.liquid-metal-button.disabled { opacity: .55; }
+.liquid-metal-button.disabled .liquid-metal-button-hit-area { cursor: default; }
+.liquid-metal-ripple { position: absolute; width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .42), transparent 70%); pointer-events: none; animation: liquid-metal-ripple .6s ease-out; transform: translate(-50%, -50%); }
+@keyframes liquid-metal-ripple { from { opacity: .65; transform: translate(-50%, -50%) scale(0); } to { opacity: 0; transform: translate(-50%, -50%) scale(4); } }
+.liquid-metal-button:has(.liquid-metal-button-hit-area:hover) .liquid-metal-button-shader { box-shadow: 0 0 0 1px rgba(111, 142, 205, .6), 0 18px 28px rgba(29, 53, 99, .24); }
+.liquid-metal-button:has(.liquid-metal-button-hit-area:focus-visible) { outline: 2px solid var(--blue); outline-offset: 4px; }
+.liquid-metal-button:has(.liquid-metal-button-hit-area:focus-visible) .liquid-metal-button-hit-area { outline: none; }
+.liquid-metal-button.text { min-width: 142px; }
+.liquid-metal-button.full-width { display: flex; width: 100% !important; }
+.liquid-metal-button.auth-submit-liquid { margin-top: 10px; }
+.liquid-metal-button.icon { min-width: 46px; }
+@media (prefers-reduced-motion: reduce) {
+  .celian-gradient-light, .celian-gradient-text, .liquid-metal-ripple { animation: none; }
+  .liquid-metal-button-shader canvas { display: none !important; }
+}
 .skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 8px 12px; color: #fff; background: var(--ink); border-radius: var(--radius-sm); transform: translateY(-150%); transition: transform .18s ease; }
 .skip-link:focus-visible { transform: translateY(0); }
 
