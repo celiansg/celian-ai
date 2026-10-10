@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Icon } from "./icon";
 
-export function SectionHeading({ icon, title, action, onAction }: { icon: string; title: string; action?: string; onAction?: () => void }) {
+export function SectionHeading({ icon, title, action, href, onAction }: { icon: string; title: string; action?: string; href?: string; onAction?: () => void }) {
   return (
     <div className="section-heading">
       <div className="section-heading-title"><span className="section-icon"><Icon name={icon} size={17} /></span><h2>{title}</h2></div>
-      {action ? <button className="text-action" onClick={onAction}>{action}<Icon name="arrowRight" size={15} /></button> : null}
+      {action && href ? <Link className="text-action" href={href}>{action}<Icon name="arrowRight" size={15} /></Link> : action && onAction ? <button className="text-action" onClick={onAction}>{action}<Icon name="arrowRight" size={15} /></button> : null}
     </div>
   );
 }

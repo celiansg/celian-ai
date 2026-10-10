@@ -6,9 +6,11 @@ import { modelOptions, type ModelChoice } from "@/lib/ai/models";
 export function AgentModelPicker({
   value,
   onChange,
+  availableProviders,
 }: {
   value: ModelChoice;
   onChange: (value: ModelChoice) => void;
+  availableProviders: { gemini: boolean; openai: boolean };
 }) {
   return (
     <label className="agent-control agent-model-control">
@@ -16,7 +18,7 @@ export function AgentModelPicker({
       <span className="sr-only">Provider IA</span>
       <select value={value} onChange={(event) => onChange(event.target.value as ModelChoice)} aria-label="Choisir le provider IA">
         {modelOptions.map((option) => (
-          <option value={option.id} key={option.id}>{option.label}</option>
+          <option value={option.id} key={option.id} disabled={option.id !== "auto" && !availableProviders[option.id]}>{option.id !== "auto" && !availableProviders[option.id] ? `${option.label} · non configuré` : option.label}</option>
         ))}
       </select>
       <ChevronDown size={13} aria-hidden="true" />

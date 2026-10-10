@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { Icon } from "./icon";
 
 const navItems = [
@@ -19,7 +18,6 @@ const spaces = ["Personnel"];
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const [activeSpace, setActiveSpace] = useState("Personnel");
   return (
     <>
       {open ? <button className="mobile-backdrop" aria-label="Fermer le menu" onClick={onClose} /> : null}
@@ -37,10 +35,9 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </nav>
 
         <div className="sidebar-divider" />
-        <div className="spaces-heading"><span>Espaces</span><button className="icon-button muted" aria-label="Ajouter un espace"><Icon name="plus" size={16} /></button></div>
+        <div className="spaces-heading"><span>Espaces</span></div>
         <div className="space-list">
-          {spaces.map((space, index) => <button key={space} className={`space-item ${activeSpace === space ? "active" : ""}`} onClick={() => setActiveSpace(space)}><span className={`space-dot space-dot-${index}`} /><span>{space}</span></button>)}
-          <button className="space-item new-space"><span className="space-add"><Icon name="plus" size={14} /></span><span>Nouveau projet</span></button>
+          {spaces.map((space, index) => <div key={space} className="space-item active"><span className={`space-dot space-dot-${index}`} /><span>{space}</span></div>)}
         </div>
 
       </aside>

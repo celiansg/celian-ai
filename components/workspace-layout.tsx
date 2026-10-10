@@ -11,5 +11,5 @@ export function WorkspaceLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   if (pathname === "/login") return <>{children}</>;
   const isDashboard = pathname === "/";
-  return <div className="app-shell"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="workspace"><Topbar onMenu={() => setSidebarOpen(true)} /><div className={`workspace-grid ${isDashboard ? "" : "route-grid"}`}><main className={`main-content ${isDashboard ? "" : "route-main"}`}>{children}</main>{isDashboard ? <RightRail /> : null}</div></div></div>;
+  return <><a className="skip-link" href="#main-content">Aller au contenu principal</a><div className="app-shell"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="workspace"><Topbar onMenu={() => setSidebarOpen(true)} /><div className={`workspace-grid ${isDashboard ? "" : "route-grid"}`}><main id="main-content" className={`main-content ${isDashboard ? "" : "route-main"}`}>{children}</main>{isDashboard ? <RightRail /> : null}</div></div></div></>;
 }

@@ -35,7 +35,7 @@ function isContinuationReady(messages: UIMessage[]) {
   );
 }
 
-export function AgentWorkspace({ agent }: { agent: AgentDefinition }) {
+export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefinition; availableProviders: { gemini: boolean; openai: boolean } }) {
   const [modelChoice, setModelChoice] = useState<ModelChoice>("auto");
   const [mode, setMode] = useState<AgentMode>("agent");
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
@@ -58,7 +58,7 @@ export function AgentWorkspace({ agent }: { agent: AgentDefinition }) {
   const transport = useMemo(
     () => new DefaultChatTransport({
       api: "/api/chat",
-      body: { agentId: agent.id, mode, model: modelChoice, projectId: "nivo" },
+      body: { agentId: agent.id, mode, model: modelChoice },
     }),
     [agent.id, mode, modelChoice],
   );
@@ -172,7 +172,7 @@ export function AgentWorkspace({ agent }: { agent: AgentDefinition }) {
   return (
     <div className="agent-workspace-page">
       <div className="agent-workspace-shell">
-        <AgentHeader agent={agent} model={modelChoice} mode={mode} onModelChange={setModelChoice} onModeChange={setMode} />
+        <AgentHeader agent={agent} model={modelChoice} mode={mode} onModelChange={setModelChoice} onModeChange={setMode} availableProviders={availableProviders} />
         <div className="agent-workspace-meta">
           <span>{agent.capabilities.slice(0, 4).join(" · ")}</span>
           {mode === "plan" ? <span className="agent-mode-hint">Les actions importantes commenceront par un plan public.</span> : <span>Les actions sensibles demandent votre validation.</span>}
