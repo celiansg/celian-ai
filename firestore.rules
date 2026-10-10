@@ -1,0 +1,126 @@
+rules_version = '2';
+
+// Prototype de règles Firebase pour Célian AI.
+// Modèle : chaque document utilisateur possède un champ userId immuable.
+// Les agents sont des documents système lisibles uniquement par un utilisateur connecté.
+// Les conversations, messages, projets, tâches, fichiers, activités et actions en attente
+// sont isolés par userId. Les champs sensibles et les dates serveur sont validés côté règle.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsExisting() {
+      return signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function ownsIncoming() {
+      return signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    function keepsOwnership() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    function validText(field, min, max) {
+      return field is string && field.size() >= min && field.size() <= max;
+    }
+
+    function validProject() {
+      return request.resource.data.keys().hasOnly(['userId', 'spaceId', 'name', 'description', 'imageUrl', 'status', 'progress', 'createdAt', 'updatedAt'])
+        && validText(request.resource.data.name, 1, 120)
+        && validText(request.resource.data.description, 0, 4000)
+        && request.resource.data.status in ['active', 'paused', 'completed', 'archived']
+        && request.resource.data.progress is int
+        && request.resource.data.progress >= 0
+        && request.resource.data.progress <= 100;
+    }
+
+    function validTask() {
+      return request.resource.data.keys().hasOnly(['userId', 'projectId', 'assignedAgentId', 'title', 'description', 'priority', 'status', 'dueAt', 'createdAt'])
+        && validText(request.resource.data.title, 1, 200)
+        && validText(request.resource.data.description, 0, 4000)
+        && request.resource.data.priority in ['low', 'medium', 'high']
+        && request.resource.data.status in ['todo', 'in_progress', 'completed', 'archived'];
+    }
+
+    function validMessage() {
+      return request.resource.data.keys().hasOnly(['userId', 'conversationId', 'role', 'content', 'metadata', 'createdAt'])
+        && validText(request.resource.data.content, 1, 20000)
+        && request.resource.data.role in ['user', 'assistant', 'system', 'tool'];
+    }
+
+    match /agents/{agentId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /profiles/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && validProject();
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership() && validProject();
+      allow delete: if ownsExisting();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && validTask();
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership() && validTask();
+      allow delete: if ownsExisting();
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && request.resource.data.keys().hasOnly(['userId', 'projectId', 'agentId', 'title', 'createdAt', 'updatedAt']) && validText(request.resource.data.title, 1, 200);
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership();
+      allow delete: if ownsExisting();
+    }
+
+    match /messages/{messageId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && validMessage();
+      allow update: if false;
+      allow delete: if ownsExisting();
+    }
+
+    match /files/{fileId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && request.resource.data.keys().hasOnly(['userId', 'projectId', 'conversationId', 'name', 'mimeType', 'size', 'storagePath', 'createdAt']) && validText(request.resource.data.name, 1, 255) && validText(request.resource.data.mimeType, 1, 120) && request.resource.data.size is int && request.resource.data.size >= 0 && request.resource.data.size <= 26214400;
+      allow update: if false;
+      allow delete: if ownsExisting();
+    }
+
+    match /activities/{activityId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && request.resource.data.keys().hasOnly(['userId', 'projectId', 'agentId', 'type', 'description', 'metadata', 'createdAt']) && validText(request.resource.data.description, 1, 2000);
+      allow update, delete: if false;
+    }
+
+    match /pending_actions/{actionId} {
+      allow read: if ownsExisting();
+      allow create: if ownsIncoming() && request.resource.data.keys().hasOnly(['userId', 'agentId', 'projectId', 'actionType', 'payload', 'description', 'status', 'createdAt', 'resolvedAt']) && validText(request.resource.data.description, 1, 4000) && request.resource.data.status == 'pending';
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolvedAt']) && request.resource.data.status in ['approved', 'rejected'];
+      allow delete: if false;
+    }
+
+    match /agent_runs/{runId} {
+      // Les traces complètes seront lues côté serveur après ajout d’un userId.
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /agent_events/{eventId} {
+      // Les événements complets seront lus côté serveur après ajout d’un userId.
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}
