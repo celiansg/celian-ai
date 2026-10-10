@@ -40,19 +40,26 @@ export function LiquidMetalButton({
   useEffect(() => {
     if (!shaderRef.current) return;
     shaderMount.current?.dispose();
-    shaderMount.current = new ShaderMount(shaderRef.current, liquidMetalFragmentShader, {
-      u_repetition: 4,
-      u_softness: 0.5,
-      u_shiftRed: 0.3,
-      u_shiftBlue: 0.3,
-      u_distortion: 0,
-      u_contour: 0,
-      u_angle: 45,
-      u_scale: 8,
-      u_shape: 1,
-      u_offsetX: 0.1,
-      u_offsetY: -0.1,
-    }, undefined, 0.6, undefined, 1, 300_000);
+    try {
+      shaderMount.current = new ShaderMount(shaderRef.current, liquidMetalFragmentShader, {
+        u_repetition: 4,
+        u_softness: 0.5,
+        u_shiftRed: 0.3,
+        u_shiftBlue: 0.3,
+        u_distortion: 0,
+        u_contour: 0,
+        u_angle: 45,
+        u_scale: 8,
+        u_shape: 1,
+        u_offsetX: 0.1,
+        u_offsetY: -0.1,
+      }, undefined, 0.6, undefined, 1, 300_000);
+    } catch (error) {
+      // WebGL is an enhancement: browsers without WebGL must keep the button usable.
+      console.warn("Liquid metal shader unavailable; using the CSS fallback.", error);
+      shaderMount.current = null;
+      shaderRef.current.replaceChildren();
+    }
 
     return () => {
       shaderMount.current?.dispose();
