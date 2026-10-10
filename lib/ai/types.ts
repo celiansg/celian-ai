@@ -54,6 +54,7 @@ export interface AgentDefinition {
   color: string;
   softColor: string;
   icon: string;
+  avatar: string;
   provider: ProviderPreference;
   model: string;
   placeholder: string;
