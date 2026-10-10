@@ -20,6 +20,7 @@ export type AgentEventType =
   | "agent_failed";
 
 export type ToolPermission = "read" | "write" | "external" | "approval_required";
+export type AgentResponseStyle = "synthesis" | "concise" | "rigorous" | "visual" | "technical" | "analytical" | "pedagogical";
 
 export interface GenerateRequest {
   system: string;
@@ -62,6 +63,14 @@ export interface AgentDefinition {
   tools: string[];
   capabilities: string[];
   permissions: ToolPermission[];
+  behavior: AgentBehavior;
+}
+
+export interface AgentBehavior {
+  responseStyle: AgentResponseStyle;
+  priorities: string[];
+  contextChecklist: string[];
+  approvalTriggers: string[];
 }
 
 export interface AgentContext {

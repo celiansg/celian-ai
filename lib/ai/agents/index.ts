@@ -25,6 +25,12 @@ export const agents: AgentDefinition[] = [
     tools: ["getProject", "getTasks", "createTask", "getRecentActivity"],
     capabilities: ["Orchestration", "Routage", "Planification", "Mémoire projet"],
     permissions: ["read", "write", "approval_required"],
+    behavior: {
+      responseStyle: "synthesis",
+      priorities: ["Comprendre l’objectif global", "Choisir les agents utiles", "Rassembler un résultat directement exploitable"],
+      contextChecklist: ["conversation", "projet", "fichiers", "tâches", "activité récente"],
+      approvalTriggers: ["envoi", "suppression", "paiement", "publication", "lancement de production"],
+    },
   },
   {
     id: "prod",
@@ -49,6 +55,12 @@ export const agents: AgentDefinition[] = [
     tools: ["listFiles", "readSupportedFile", "getProject", "createActivity"],
     capabilities: ["Contrôle BAT", "Prépresse", "Fiches de fabrication", "Supports"],
     permissions: ["read", "write", "approval_required"],
+    behavior: {
+      responseStyle: "rigorous",
+      priorities: ["Préserver les termes techniques", "Séparer confirmé, manquant et supposé", "Traiter globalement les corrections"],
+      contextChecklist: ["format fini/ouvert", "quantité", "support", "grammage", "impression", "finition", "façonnage", "délais", "statut du BAT"],
+      approvalTriggers: ["validation du BAT", "lancement de production", "modification engageante"],
+    },
   },
   {
     id: "client",
@@ -73,6 +85,12 @@ export const agents: AgentDefinition[] = [
     tools: ["getProject", "getRecentActivity", "createActivity"],
     capabilities: ["Mails", "Relances", "Synthèse", "Réponses"],
     permissions: ["read", "write", "approval_required"],
+    behavior: {
+      responseStyle: "concise",
+      priorities: ["Répondre directement", "Rester naturel et professionnel", "Produire un texte prêt à copier-coller"],
+      contextChecklist: ["destinataire", "objet", "demande", "historique client", "statut du BAT"],
+      approvalTriggers: ["envoi d’email", "relance externe", "communication engageante"],
+    },
   },
   {
     id: "design",
@@ -97,6 +115,12 @@ export const agents: AgentDefinition[] = [
     tools: ["listFiles", "getProject", "createActivity"],
     capabilities: ["Direction artistique", "Mise en page", "Mockups", "Prompts visuels"],
     permissions: ["read", "write"],
+    behavior: {
+      responseStyle: "visual",
+      priorities: ["Respecter le brief et les références", "Renforcer hiérarchie, lisibilité et proportions", "Vérifier la faisabilité du support"],
+      contextChecklist: ["référence", "support", "dimensions", "matière", "marquage", "contraintes de production"],
+      approvalTriggers: ["publication", "commande de production", "modification irréversible"],
+    },
   },
   {
     id: "dev",
@@ -121,6 +145,12 @@ export const agents: AgentDefinition[] = [
     tools: ["getProject", "getTasks", "createActivity"],
     capabilities: ["Architecture", "UX/UI", "APIs", "Debug"],
     permissions: ["read", "write", "approval_required"],
+    behavior: {
+      responseStyle: "technical",
+      priorities: ["Vérifier l’utilité", "Choisir la solution la plus simple et maintenable", "Tester avant de conclure"],
+      contextChecklist: ["besoin", "UX", "architecture", "données", "sécurité", "tests", "build"],
+      approvalTriggers: ["déploiement", "suppression de données", "dépense", "action externe"],
+    },
   },
   {
     id: "business",
@@ -145,6 +175,12 @@ export const agents: AgentDefinition[] = [
     tools: ["getProject", "getTasks", "createActivity"],
     capabilities: ["Pricing", "Marge", "Marché", "MVP"],
     permissions: ["read", "write"],
+    behavior: {
+      responseStyle: "analytical",
+      priorities: ["Calculer l’économie réelle", "Comparer les options", "Proposer un test MVP et challenger les hypothèses"],
+      contextChecklist: ["prix de vente", "coût produit", "livraison", "paiement", "publicité", "retours", "temps passé"],
+      approvalTriggers: ["dépense", "engagement fournisseur", "publication commerciale"],
+    },
   },
   {
     id: "bts",
@@ -169,6 +205,12 @@ export const agents: AgentDefinition[] = [
     tools: ["getProject", "createActivity"],
     capabilities: ["Cours ERPC", "Exercices", "Quiz", "Révisions"],
     permissions: ["read", "write"],
+    behavior: {
+      responseStyle: "pedagogical",
+      priorities: ["Expliquer simplement", "Relier à un exemple concret", "Vérifier la compréhension et cibler les révisions"],
+      contextChecklist: ["notion", "niveau", "difficultés connues", "vocabulaire professionnel", "objectif de révision"],
+      approvalTriggers: [],
+    },
   },
 ];
 

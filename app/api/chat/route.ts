@@ -12,6 +12,8 @@ import {
 import { z } from "zod";
 import { getAgent } from "@/lib/ai/agents";
 import { agentMaxSteps } from "@/lib/ai/config";
+import { buildAgentSystemPrompt } from "@/lib/ai/policy";
+import { getProjectMemory } from "@/lib/ai/memory/project-memory";
 import { defaultGeminiModel, normalizeModelChoice } from "@/lib/ai/models";
 import { runAgent } from "@/lib/ai/orchestration/runner";
 import type { AgentId } from "@/lib/ai/types";
@@ -58,7 +60,7 @@ function getProvider(choice: ReturnType<typeof normalizeModelChoice>, agentModel
   return google(choice === "gemini" ? defaultGeminiModel : agentModel || defaultGeminiModel);
 }
 
-function createWorkspaceTools(projectId: string | undefined, agentId: AgentId) {
+function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, projectMemory?: Awaited<ReturnType<typeof getProjectMemory>>) {
   return {
     getProjectContext: tool({
       description: "Récupère le contexte structuré du projet actif.",
@@ -67,8 +69,9 @@ function createWorkspaceTools(projectId: string | undefined, agentId: AgentId) {
       }),
       execute: async ({ requestedProjectId }) => ({
         projectId: requestedProjectId ?? projectId ?? null,
-        status: "not_configured",
-        message: "Aucun projet n’est encore associé à cette conversation.",
+        status: requestedProjectId ?? projectId ? "available" : "not_selected",
+        memory: requestedProjectId && requestedProjectId !== projectId ? await getProjectMemory(requestedProjectId) : projectMemory ?? null,
+        message: requestedProjectId ?? projectId ? "Contexte projet chargé." : "Aucun projet n’est encore associé à cette conversation.",
       }),
     }),
 
@@ -215,7 +218,8 @@ export async function POST(request: Request) {
     const agent = getAgent(agentId);
     const projectId = body.projectId;
     const modelChoice = normalizeModelChoice(body.model);
-    const tools = createWorkspaceTools(projectId, agentId);
+    const projectMemory = projectId ? await getProjectMemory(projectId) : undefined;
+    const tools = createWorkspaceTools(projectId, agentId, projectMemory);
     const model = getProvider(modelChoice, agent.model);
     const messages = body.messages as UIMessage[];
 
@@ -223,18 +227,7 @@ export async function POST(request: Request) {
     const result = streamText({
       model,
       messages: modelMessages,
-      system: [
-        `Tu es ${agent.handle}, ${agent.role}, dans Célian AI.`,
-        agent.instructions,
-        `Objectif produit : faire avancer le travail avec des actions traçables, pas simplement discuter.`,
-        `Contexte projet actif : ${projectId || "aucun projet sélectionné"}. Utilise les outils lorsque cela apporte une information vérifiable.`,
-        `Quand une demande implique plusieurs spécialités, ${agentId === "celian" ? "délègue avec l’outil Agent et synthétise les résultats." : "signale clairement le relais recommandé."}`,
-        `Ne révèle jamais de chaîne de pensée privée. Décris seulement les actions, outils, résultats, blocages et prochaines étapes utiles.`,
-        `Ne prétends jamais avoir envoyé un email, modifié un fichier externe ou connecté une intégration si l’outil ne le confirme pas.`,
-        body.mode === "plan"
-          ? "Mode Plan : pour une demande comportant plusieurs actions, commence par un PlanWrite public et attends son approbation avant les actions importantes."
-          : "Mode Agent : agis directement pour les opérations réversibles et demande validation pour les actions sensibles.",
-      ].join("\n\n"),
+      system: buildAgentSystemPrompt({ agent, projectId, memory: projectMemory, mode: body.mode }),
       tools,
       toolApproval: {
         PlanWrite: "user-approval",

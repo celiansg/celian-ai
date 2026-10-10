@@ -2,6 +2,8 @@ import { agentMaxSteps, resolveProvider } from "../config";
 import { getAgent } from "../agents";
 import { getAIProvider } from "../providers";
 import { getTool } from "../tools";
+import { buildAgentSystemPrompt } from "../policy";
+import { getProjectMemory } from "../memory/project-memory";
 import type { AgentContext, AgentEventType, AgentId, AgentRunEvent, AgentRunResult } from "../types";
 
 function event(type: AgentEventType, agentId: AgentId, summary: string, metadata?: Record<string, unknown>): AgentRunEvent {
@@ -11,12 +13,14 @@ function event(type: AgentEventType, agentId: AgentId, summary: string, metadata
 export async function runAgent({ agentId, goal, context }: { agentId: AgentId; goal: string; context: AgentContext }): Promise<AgentRunResult> {
   const definition = getAgent(agentId);
   const provider = getAIProvider(resolveProvider(definition.provider));
+  const projectMemory = context.projectId ? await getProjectMemory(context.projectId) : undefined;
   const events: AgentRunEvent[] = [event("agent_started", agentId, `${definition.handle} analyse la demande` )];
   let answer = "";
+  const seenActions = new Set<string>();
 
   for (let step = 0; step < agentMaxSteps; step += 1) {
     const response = await provider.generate({
-      system: definition.instructions,
+      system: buildAgentSystemPrompt({ agent: definition, projectId: context.projectId, memory: projectMemory, mode: "agent" }),
       prompt: goal,
       context: { projectId: context.projectId, step, agentId, ...(context.facts ?? {}) },
       tools: definition.tools,
@@ -55,7 +59,13 @@ export async function runAgent({ agentId, goal, context }: { agentId: AgentId; g
       return { status: "waiting_for_approval", answer, events, pendingAction };
     }
 
-    break;
+    const actionKey = JSON.stringify({ toolCall: response.toolCall?.name, handoff: response.handoff });
+    if (!response.toolCall && !response.handoff) break;
+    if (seenActions.has(actionKey)) {
+      events.push(event("agent_failed", agentId, `${definition.handle} a arrêté une action répétée pour éviter une boucle`));
+      return { status: "failed", answer, events };
+    }
+    seenActions.add(actionKey);
   }
 
   events.push(event("agent_completed", agentId, `${definition.handle} a terminé la préparation`));
