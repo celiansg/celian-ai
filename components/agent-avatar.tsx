@@ -7,7 +7,7 @@ export function AgentAvatar({ agentId, size = "md", showStatus = false }: { agen
   const agent = getAgent(agentId);
   return (
     <span className={`agent-avatar agent-avatar-${size}`} style={{ backgroundColor: agent.color }} title={agent.handle}>
-      {agent.avatar ? <Image className="agent-avatar-image" src={agent.avatar} alt="" fill sizes="48px" /> : <Icon name={agent.icon} size={size === "sm" ? 14 : size === "lg" ? 22 : 18} strokeWidth={2} />}
+      {agent.avatar ? <Image className="agent-avatar-image" src={agent.avatar} alt="" fill sizes="48px" unoptimized /> : <Icon name={agent.icon} size={size === "sm" ? 14 : size === "lg" ? 22 : 18} strokeWidth={2} />}
       {showStatus ? <i className="agent-status-dot" /> : null}
     </span>
   );
