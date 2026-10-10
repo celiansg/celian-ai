@@ -1,8 +1,8 @@
 export type ModelChoice = "auto" | "gemini" | "openai";
 
-// Google currently exposes Gemini 3.8 Flash to new API users. Keeping this in
-// one place lets the agent catalog and the provider adapter evolve together.
-export const defaultGeminiModel = "gemini-3.8-flash";
+// Keep the default centralized so every agent uses the same low-latency model.
+// Gemini 3.5 Flash-Lite is stable and designed for high-throughput subagent work.
+export const defaultGeminiModel = "gemini-3.5-flash-lite";
 
 export const modelOptions = [
   { id: "auto", label: "Auto", description: "Le modèle défini par l’agent" },

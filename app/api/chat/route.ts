@@ -206,6 +206,14 @@ function createWorkspaceTools(projectId: string, agentId: AgentId) {
   };
 }
 
+function getPublicStreamError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (message.includes("high demand") || message.includes("unavailable") || message.includes("503")) {
+    return "Gemini est momentanément très sollicité. Réessayez dans quelques instants.";
+  }
+  return "Impossible de terminer cette exécution. Vérifiez le provider configuré puis réessayez.";
+}
+
 export async function POST(request: Request) {
   try {
     const body = chatRequestSchema.parse(await request.json());
@@ -239,6 +247,7 @@ export async function POST(request: Request) {
         PlanWrite: "user-approval",
         sendClientEmail: "user-approval",
       },
+      maxRetries: 0,
       stopWhen: isStepCount(agentMaxSteps),
       onStepEnd: async ({ toolCalls, toolResults }) => {
         console.info("[celian-ai] agent step", { agentId, toolCalls: toolCalls.length, toolResults: toolResults.length });
@@ -249,7 +258,7 @@ export async function POST(request: Request) {
       stream: toUIMessageStream({
         stream: result.stream,
         tools,
-        onError: () => "Impossible de terminer cette exécution. Vérifiez le provider configuré puis réessayez.",
+        onError: getPublicStreamError,
       }),
     });
   } catch (error) {
