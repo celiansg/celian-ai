@@ -12,7 +12,7 @@ import {
 import { z } from "zod";
 import { getAgent } from "@/lib/ai/agents";
 import { agentMaxSteps } from "@/lib/ai/config";
-import { normalizeModelChoice } from "@/lib/ai/models";
+import { defaultGeminiModel, normalizeModelChoice } from "@/lib/ai/models";
 import { runAgent } from "@/lib/ai/orchestration/runner";
 import type { AgentId } from "@/lib/ai/types";
 
@@ -55,7 +55,7 @@ function getProvider(choice: ReturnType<typeof normalizeModelChoice>, agentModel
   }
 
   const google = createGoogleGenerativeAI({ apiKey });
-  return google(choice === "gemini" ? "gemini-2.5-flash" : agentModel);
+  return google(choice === "gemini" ? defaultGeminiModel : agentModel || defaultGeminiModel);
 }
 
 function createWorkspaceTools(projectId: string, agentId: AgentId) {

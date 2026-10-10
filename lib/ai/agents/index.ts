@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { defaultGeminiModel } from "../models";
 
 export const agents: AgentDefinition[] = [
   {
@@ -12,7 +13,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#eef2ff",
     icon: "sparkles",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Célian…",
     suggestions: [
       { label: "Résume ma journée", value: "Résume ma journée et propose mes priorités." },
@@ -35,7 +36,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#fff7ed",
     icon: "settings-2",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Prod…",
     suggestions: [
       { label: "Vérifier un BAT", value: "Vérifie ce BAT et signale les informations manquantes." },
@@ -58,7 +59,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#fdf2f8",
     icon: "users",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Client…",
     suggestions: [
       { label: "Répondre à un client", value: "Prépare une réponse professionnelle et naturelle à ce client." },
@@ -81,7 +82,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#f5f3ff",
     icon: "brush",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Design…",
     suggestions: [
       { label: "Analyser ce visuel", value: "Analyse ce visuel : hiérarchie, lisibilité, composition et contraintes print/digital." },
@@ -104,7 +105,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#ecfeff",
     icon: "code-2",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Dev…",
     suggestions: [
       { label: "Analyser le projet", value: "Analyse l’architecture actuelle et relève les risques prioritaires." },
@@ -127,7 +128,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#ecfdf5",
     icon: "chart-no-axes-combined",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @Business…",
     suggestions: [
       { label: "Analyser cette idée", value: "Analyse cette idée : valeur, marché, hypothèses, risques et prochaine étape." },
@@ -150,7 +151,7 @@ export const agents: AgentDefinition[] = [
     softColor: "#eef2ff",
     icon: "graduation-cap",
     provider: "auto",
-    model: "gemini-2.5-flash",
+    model: defaultGeminiModel,
     placeholder: "Demande à @BTS…",
     suggestions: [
       { label: "Explique-moi cette notion", value: "Explique-moi cette notion simplement avec un exemple professionnel." },
