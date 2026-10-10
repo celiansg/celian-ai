@@ -127,6 +127,20 @@ a, button, input, select { touch-action: manipulation; }
 .agent-mode-selector { display: inline-flex; align-items: center; padding: 3px; background: rgba(232, 237, 247, .78); border-radius: 9px; }
 .agent-mode-selector button { height: 24px; padding: 0 8px; color: #8290a8; background: transparent; border-radius: 6px; font-size: 10px; font-weight: 700; }
 .agent-mode-selector button.active { color: #2d65c8; background: #fff; box-shadow: 0 2px 7px rgba(40, 75, 132, .1); }
+.agent-elements-popover { z-index: 80; min-width: 190px; padding: 5px; color: #26334f; background: #fff; border: 1px solid #e1e6f0; border-radius: 10px; box-shadow: 0 14px 30px rgba(32, 52, 91, .16); outline: 0; }
+.agent-elements-picker-trigger, .agent-elements-mode-trigger { cursor: pointer; }
+.agent-elements-picker-trigger { min-width: 78px; justify-content: space-between; }
+.agent-elements-picker-version { color: #8b97aa; }
+.agent-elements-picker-option, .agent-elements-mode-option { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px; color: #33415f; background: transparent; border-radius: 7px; text-align: left; font-size: 11px; }
+.agent-elements-picker-option:hover, .agent-elements-mode-option:hover, .agent-elements-picker-option.active, .agent-elements-mode-option.active { background: #f0f4fb; }
+.agent-elements-picker-option > span, .agent-elements-mode-option > span { min-width: 0; flex: 1; }
+.agent-elements-picker-option small, .agent-elements-mode-option small { display: block; margin-left: 4px; color: #8b97aa; font-size: 9px; }
+.agent-elements-mode-trigger { gap: 5px; }
+.agent-elements-mode-trigger.single { pointer-events: none; }
+.agent-elements-mode-icon { width: 14px; height: 14px; flex: 0 0 auto; }
+.agent-elements-mode-option { align-items: flex-start; }
+.agent-elements-mode-option strong, .agent-elements-mode-option small { display: block; }
+.agent-elements-mode-option small { margin: 3px 0 0; line-height: 1.3; }
 .agent-workspace-meta { display: flex; justify-content: space-between; gap: 16px; min-height: 24px; padding: 0 5px 8px; color: #94a0b3; font-size: 10px; }
 .agent-mode-hint { color: #7a66d8; }
 .agent-chat-surface { min-height: 0; flex: 1; overflow: hidden; overscroll-behavior: contain; position: relative; background: rgba(255, 255, 255, .78); border: 1px solid #e0e6f1; border-radius: 20px; box-shadow: 0 16px 40px rgba(46, 77, 133, .08); transition: border-color .18s ease, box-shadow .18s ease; }

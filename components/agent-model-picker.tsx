@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ModelPicker } from "@/components/agent-elements/input/model-picker";
 import { modelOptions, type ModelChoice } from "@/lib/ai/models";
 
 export function AgentModelPicker({
@@ -12,16 +12,9 @@ export function AgentModelPicker({
   onChange: (value: ModelChoice) => void;
   availableProviders: { gemini: boolean; openai: boolean };
 }) {
-  return (
-    <label className="agent-control agent-model-control">
-      <Sparkles size={13} aria-hidden="true" />
-      <span className="sr-only">Provider IA</span>
-      <select value={value} onChange={(event) => onChange(event.target.value as ModelChoice)} aria-label="Choisir le provider IA">
-        {modelOptions.map((option) => (
-          <option value={option.id} key={option.id} disabled={option.id !== "auto" && !availableProviders[option.id]}>{option.id !== "auto" && !availableProviders[option.id] ? `${option.label} · non configuré` : option.label}</option>
-        ))}
-      </select>
-      <ChevronDown size={13} aria-hidden="true" />
-    </label>
-  );
+  const availableModels = modelOptions
+    .filter((option) => option.id === "auto" || availableProviders[option.id])
+    .map((option) => ({ id: option.id, name: option.label }));
+
+  return <ModelPicker models={availableModels} value={value} onChange={(nextValue) => onChange(nextValue as ModelChoice)} className="agent-control agent-model-control" />;
 }

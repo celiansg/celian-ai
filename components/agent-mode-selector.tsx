@@ -1,5 +1,8 @@
 "use client";
 
+import { Bot, ListChecks } from "lucide-react";
+import { ModeSelector } from "@/components/agent-elements/input/mode-selector";
+
 export type AgentMode = "agent" | "plan";
 
 export function AgentModeSelector({
@@ -9,14 +12,13 @@ export function AgentModeSelector({
   value: AgentMode;
   onChange: (value: AgentMode) => void;
 }) {
-  return (
-    <div className="agent-mode-selector" role="group" aria-label="Mode d’exécution">
-      <button type="button" className={value === "agent" ? "active" : ""} onClick={() => onChange("agent")} aria-pressed={value === "agent"}>
-        Agent
-      </button>
-      <button type="button" className={value === "plan" ? "active" : ""} onClick={() => onChange("plan")} aria-pressed={value === "plan"}>
-        Plan
-      </button>
-    </div>
-  );
+  return <ModeSelector
+    modes={[
+      { id: "agent", label: "Agent", icon: Bot, description: "Agir directement sur les étapes réversibles" },
+      { id: "plan", label: "Plan", icon: ListChecks, description: "Préparer un plan avant les actions importantes" },
+    ]}
+    value={value}
+    onChange={(nextValue) => onChange(nextValue as AgentMode)}
+    className="agent-mode-selector"
+  />;
 }
