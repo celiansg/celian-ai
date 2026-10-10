@@ -56,6 +56,8 @@ export interface AgentDefinition {
   icon: string;
   provider: ProviderPreference;
   model: string;
+  placeholder: string;
+  suggestions: Array<{ label: string; value: string }>;
   tools: string[];
   capabilities: string[];
   permissions: ToolPermission[];

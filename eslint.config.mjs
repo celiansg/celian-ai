@@ -5,7 +5,10 @@ const compat = new FlatCompat({ baseDirectory: fileURLToPath(new URL(".", import
 
 const config = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  // Agent Elements is vendored from the official 21st.dev registry. It is
+  // typechecked with the application, but its upstream lint conventions are
+  // intentionally kept intact.
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "components/agent-elements/**"] },
 ];
 
 export default config;
