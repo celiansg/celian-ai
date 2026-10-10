@@ -17,8 +17,8 @@ export class MockProvider implements AIProvider {
 
     if (agentId === "prod") {
       return {
-        text: "Le BAT a été contrôlé. Les contraintes visibles sont cohérentes avec le projet Nivo.",
-        toolCall: { name: "listFiles", input: { projectId: request.context?.projectId ?? "nivo" } },
+        text: "Je peux contrôler un BAT dès que vous aurez ajouté un fichier au workspace.",
+        toolCall: { name: "listFiles", input: { projectId: request.context?.projectId } },
       };
     }
 
@@ -33,7 +33,7 @@ export class MockProvider implements AIProvider {
     if (prompt.includes("bat") || prompt.includes("production") || prompt.includes("impression")) {
       return {
         text: "Je vérifie les contraintes de production et les informations manquantes.",
-        toolCall: { name: "listFiles", input: { projectId: request.context?.projectId ?? "nivo" } },
+        toolCall: { name: "listFiles", input: { projectId: request.context?.projectId } },
         handoff: "prod",
       };
     }

@@ -58,7 +58,7 @@ function getProvider(choice: ReturnType<typeof normalizeModelChoice>, agentModel
   return google(choice === "gemini" ? defaultGeminiModel : agentModel || defaultGeminiModel);
 }
 
-function createWorkspaceTools(projectId: string, agentId: AgentId) {
+function createWorkspaceTools(projectId: string | undefined, agentId: AgentId) {
   return {
     getProjectContext: tool({
       description: "Récupère le contexte structuré du projet actif.",
@@ -66,11 +66,9 @@ function createWorkspaceTools(projectId: string, agentId: AgentId) {
         requestedProjectId: z.string().optional().describe("Identifiant du projet si différent du projet actif"),
       }),
       execute: async ({ requestedProjectId }) => ({
-        projectId: requestedProjectId ?? projectId,
-        name: requestedProjectId === "nivo" || !requestedProjectId ? "Nivo" : requestedProjectId,
-        status: "active",
-        progress: 80,
-        note: "Contexte de démonstration prêt à être remplacé par Firestore.",
+        projectId: requestedProjectId ?? projectId ?? null,
+        status: "not_configured",
+        message: "Aucun projet n’est encore associé à cette conversation.",
       }),
     }),
 
@@ -81,11 +79,8 @@ function createWorkspaceTools(projectId: string, agentId: AgentId) {
       }),
       execute: async ({ scope }) => ({
         scope,
-        tasks: [
-          { title: "Répondre aux mails clients", status: "todo", priority: "high" },
-          { title: "Finaliser le BAT Nivo", status: "todo", priority: "high" },
-          { title: "Préparer le catalogue Menhirs", status: "todo", priority: "medium" },
-        ],
+        tasks: [],
+        count: 0,
       }),
     }),
 
@@ -96,11 +91,9 @@ function createWorkspaceTools(projectId: string, agentId: AgentId) {
       }),
       execute: async ({ query }) => ({
         query,
-        files: [
-          { name: "BAT_Nivo_v3.pdf", type: "application/pdf", projectId },
-          { name: "brief-client.pdf", type: "application/pdf", projectId },
-        ],
-        note: "Recherche interne de démonstration; le branchement Storage sera ajouté dans la couche données.",
+        files: [],
+        count: 0,
+        message: "Aucun fichier correspondant n’a été trouvé.",
       }),
     }),
 
@@ -141,7 +134,7 @@ function createWorkspaceTools(projectId: string, agentId: AgentId) {
         const result = await runAgent({
           agentId: delegatedAgentId,
           goal,
-          context: { userId: "demo-user", projectId },
+          context: { userId: "current-user", projectId },
         });
         const delegatedAgent = getAgent(delegatedAgentId);
         return {
@@ -220,7 +213,7 @@ export async function POST(request: Request) {
     const rawAgentId = body.agentId ?? "celian";
     const agentId = agentIdSchema.parse(rawAgentId);
     const agent = getAgent(agentId);
-    const projectId = body.projectId ?? "nivo";
+    const projectId = body.projectId;
     const modelChoice = normalizeModelChoice(body.model);
     const tools = createWorkspaceTools(projectId, agentId);
     const model = getProvider(modelChoice, agent.model);
@@ -234,7 +227,7 @@ export async function POST(request: Request) {
         `Tu es ${agent.handle}, ${agent.role}, dans Célian AI.`,
         agent.instructions,
         `Objectif produit : faire avancer le travail avec des actions traçables, pas simplement discuter.`,
-        `Contexte projet actif : ${projectId}. Utilise les outils lorsque cela apporte une information vérifiable.`,
+        `Contexte projet actif : ${projectId || "aucun projet sélectionné"}. Utilise les outils lorsque cela apporte une information vérifiable.`,
         `Quand une demande implique plusieurs spécialités, ${agentId === "celian" ? "délègue avec l’outil Agent et synthétise les résultats." : "signale clairement le relais recommandé."}`,
         `Ne révèle jamais de chaîne de pensée privée. Décris seulement les actions, outils, résultats, blocages et prochaines étapes utiles.`,
         `Ne prétends jamais avoir envoyé un email, modifié un fichier externe ou connecté une intégration si l’outil ne le confirme pas.`,

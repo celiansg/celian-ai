@@ -16,14 +16,14 @@ export const tools: ToolDefinition[] = [
     description: "Récupère le contexte d’un projet.",
     permission: "read",
     inputSchema: { projectId: "string" },
-    execute: async (input) => ({ projectId: input.projectId ?? "nivo", status: "active", progress: 80 }),
+    execute: async (input) => ({ projectId: input.projectId ?? null, status: "not_found", message: "Aucun projet trouvé." }),
   },
   {
     name: "getTasks",
     description: "Récupère les tâches ouvertes de l’espace.",
     permission: "read",
     inputSchema: { projectId: "string?" },
-    execute: async () => ({ count: 4, next: "Finaliser le BAT Nivo" }),
+    execute: async () => ({ count: 0, tasks: [] }),
   },
   {
     name: "createTask",
@@ -37,7 +37,7 @@ export const tools: ToolDefinition[] = [
     description: "Liste les fichiers accessibles d’un projet.",
     permission: "read",
     inputSchema: { projectId: "string?" },
-    execute: async () => ({ files: ["BAT_Nivo_v3.pdf", "brief-client.pdf"], count: 2 }),
+    execute: async () => ({ files: [], count: 0 }),
   },
   {
     name: "readSupportedFile",
@@ -58,7 +58,7 @@ export const tools: ToolDefinition[] = [
     description: "Récupère les événements récents utiles au contexte.",
     permission: "read",
     inputSchema: { limit: "number?" },
-    execute: async () => ({ activities: 5, latest: "@Prod a mis à jour l’avancement du projet Nivo" }),
+    execute: async () => ({ activities: [], count: 0 }),
   },
 ];
 

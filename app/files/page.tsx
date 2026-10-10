@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui";
 
 export default function FilesPage() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<Array<{ name: string; size: string }>>([{ name: "BAT_Nivo_v3.pdf", size: "2,4 Mo" }, { name: "brief-client.pdf", size: "840 Ko" }]);
+  const [files, setFiles] = useState<Array<{ name: string; size: string }>>([]);
   function onFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []).map((file) => ({ name: file.name, size: `${Math.max(1, Math.round(file.size / 1024))} Ko` }));
     setFiles((current) => [...selected, ...current]);

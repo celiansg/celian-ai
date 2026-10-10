@@ -15,7 +15,7 @@ const navItems = [
   { href: "/settings", label: "Paramètres", icon: "settings" },
 ];
 
-const spaces = ["Personnel", "Nivo", "Maison des Menhirs", "AFLPH", "Portfolio"];
+const spaces = ["Personnel"];
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
@@ -43,7 +43,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           <button className="space-item new-space"><span className="space-add"><Icon name="plus" size={14} /></span><span>Nouveau projet</span></button>
         </div>
 
-        <div className="sidebar-promo"><span className="promo-spark"><Icon name="sparkles" size={16} /></span><div className="promo-title">Passez plus loin avec Célian AI Pro</div><p>Agents avancés, plus de capacité, outils premium…</p><button>Découvrir Pro <Icon name="arrowRight" size={15} /></button></div>
       </aside>
     </>
   );

@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const result = await runAgent({
       agentId,
       goal: body.goal,
-      context: { userId: "demo-user", projectId: body.projectId ?? "nivo" },
+      context: { userId: "current-user", projectId: body.projectId },
     });
     return NextResponse.json(result);
   } catch {
