@@ -1,4 +1,6 @@
-const CACHE_NAME = "agents-shell-v1";
+// Bump this whenever authentication or routing code changes so an installed
+// PWA cannot keep serving an obsolete login bundle.
+const CACHE_NAME = "agents-shell-v2";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
