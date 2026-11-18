@@ -16,7 +16,8 @@ import { buildAgentSystemPrompt } from "@/lib/ai/policy";
 import { getProjectMemory } from "@/lib/ai/memory/project-memory";
 import { defaultGeminiModel, normalizeModelChoice } from "@/lib/ai/models";
 import { runAgent } from "@/lib/ai/orchestration/runner";
-import type { AgentId } from "@/lib/ai/types";
+import { workspaceTaskInputSchema, workspaceTaskOutputSchema } from "@/lib/ai/workspace-task";
+import { aiAuthError, authenticateAiRequest } from "@/lib/firebase/server-auth";
 
 const chatRequestSchema = z.object({
   messages: z.array(z.unknown()).default([]),
@@ -24,6 +25,12 @@ const chatRequestSchema = z.object({
   mode: z.enum(["agent", "plan"]).default("agent"),
   model: z.unknown().optional(),
   projectId: z.string().optional(),
+  workspaceContext: z.object({
+    projects: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), status: z.string(), progress: z.number() })).default([]),
+    tasks: z.array(z.object({ id: z.string(), title: z.string(), status: z.string(), priority: z.string(), projectId: z.string().optional(), assignedAgentId: z.string().optional(), dueAt: z.string().optional() })).default([]),
+    files: z.array(z.object({ id: z.string(), name: z.string(), mimeType: z.string(), size: z.number(), kind: z.string(), projectId: z.string().optional() })).default([]),
+    activities: z.array(z.object({ id: z.string(), description: z.string(), agentId: z.string(), projectId: z.string().optional(), createdAt: z.string() })).default([]),
+  }).optional(),
 });
 
 const agentIdSchema = z.enum([
@@ -60,18 +67,34 @@ function getProvider(choice: ReturnType<typeof normalizeModelChoice>, agentModel
   return google(choice === "gemini" ? defaultGeminiModel : agentModel || defaultGeminiModel);
 }
 
-function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, projectMemory?: Awaited<ReturnType<typeof getProjectMemory>>) {
+function createWorkspaceTools(userId: string, projectId: string | undefined, projectMemory?: Awaited<ReturnType<typeof getProjectMemory>>, workspaceContext?: z.infer<typeof chatRequestSchema>['workspaceContext']) {
   return {
+    searchWorkspaceProjects: tool({
+      description: "Recherche un projet visible par nom pour retrouver son identifiant avant de créer une tâche liée.",
+      inputSchema: z.object({ query: z.string().trim().min(1).max(120) }),
+      execute: async ({ query }) => ({
+        status: workspaceContext ? "available" : "not_connected",
+        projects: (workspaceContext?.projects ?? [])
+          .filter(({ name }) => name.toLocaleLowerCase("fr").includes(query.toLocaleLowerCase("fr")))
+          .slice(0, 10)
+          .map(({ id, name }) => ({ id, name })),
+      }),
+    }),
     getProjectContext: tool({
       description: "Récupère le contexte structuré du projet actif.",
       inputSchema: z.object({
         requestedProjectId: z.string().optional().describe("Identifiant du projet si différent du projet actif"),
       }),
       execute: async ({ requestedProjectId }) => ({
-        projectId: requestedProjectId ?? projectId ?? null,
-        status: requestedProjectId ?? projectId ? "available" : "not_selected",
-        memory: requestedProjectId && requestedProjectId !== projectId ? await getProjectMemory(requestedProjectId) : projectMemory ?? null,
-        message: requestedProjectId ?? projectId ? "Contexte projet chargé." : "Aucun projet n’est encore associé à cette conversation.",
+        projectId: requestedProjectId && requestedProjectId !== projectId ? null : requestedProjectId ?? projectId ?? null,
+        status: requestedProjectId && requestedProjectId !== projectId ? "not_available_in_this_conversation" : requestedProjectId ?? projectId ? "available" : "not_selected",
+        memory: requestedProjectId && requestedProjectId !== projectId ? null : projectMemory ?? null,
+        project: requestedProjectId && requestedProjectId !== projectId
+          ? null
+          : workspaceContext?.projects.find((item) => item.id === projectId) ?? null,
+        message: requestedProjectId && requestedProjectId !== projectId
+          ? "Ce projet n’est pas associé à cette conversation ; aucune donnée n’a été lue."
+          : requestedProjectId ?? projectId ? "Contexte projet chargé." : "Aucun projet n’est encore associé à cette conversation.",
       }),
     }),
 
@@ -80,11 +103,16 @@ function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, p
       inputSchema: z.object({
         scope: z.enum(["today", "project", "all"]).default("today"),
       }),
-      execute: async ({ scope }) => ({
-        scope,
-        tasks: [],
-        count: 0,
-      }),
+      execute: async ({ scope }) => {
+        const tasks = (workspaceContext?.tasks ?? []).filter((task) => {
+          if (task.status === "completed" || task.status === "archived") return false;
+          if (scope === "all") return true;
+          if (scope === "project") return Boolean(projectId && task.projectId === projectId);
+          if (!task.dueAt) return false;
+          return new Date(task.dueAt).toDateString() === new Date().toDateString();
+        });
+        return { scope, tasks, count: tasks.length, status: workspaceContext ? "available" : "not_connected" };
+      },
     }),
 
     searchWorkspaceFiles: tool({
@@ -94,36 +122,37 @@ function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, p
       }),
       execute: async ({ query }) => ({
         query,
-        files: [],
-        count: 0,
-        message: "Aucun fichier correspondant n’a été trouvé.",
+        files: (workspaceContext?.files ?? []).filter((file) => `${file.name} ${file.mimeType} ${file.kind}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())),
+        count: workspaceContext?.files.filter((file) => `${file.name} ${file.mimeType} ${file.kind}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).length ?? 0,
+        status: workspaceContext ? "available" : "not_connected",
+        message: workspaceContext ? "Métadonnées locales transmises à cette exécution. Le contenu binaire reste local tant qu’il n’est pas joint au message." : "Les fichiers locaux du navigateur ne sont pas accessibles depuis le serveur sans synchronisation authentifiée.",
       }),
     }),
 
     createWorkspaceTask: tool({
-      description: "Crée une tâche interne non critique dans le projet.",
-      inputSchema: z.object({
-        title: z.string().min(2),
-        description: z.string().optional(),
-      }),
-      execute: async ({ title, description }) => ({
-        id: `task-${Date.now()}`,
-        title,
-        description: description ?? "",
-        projectId,
-        createdBy: agentId,
-        status: "created",
-      }),
+      description: "Enregistre une tâche interne si l’utilisateur en a demandé la création. Utilise uniquement un identifiant de projet visible ou omets-le. Confirme la création uniquement si le résultat est created.",
+      inputSchema: workspaceTaskInputSchema,
+      outputSchema: workspaceTaskOutputSchema,
     }),
 
     createActivity: tool({
       description: "Ajoute une trace d’activité lisible dans le projet.",
       inputSchema: z.object({ description: z.string().min(2) }),
       execute: async ({ description }) => ({
-        id: `activity-${Date.now()}`,
         description,
         projectId,
-        status: "recorded",
+        status: "not_persisted",
+        message: "L’activité a été préparée mais n’a pas été enregistrée : la synchronisation authentifiée n’est pas active.",
+      }),
+    }),
+
+    getRecentActivity: tool({
+      description: "Récupère les activités récentes visibles dans le contexte courant.",
+      inputSchema: z.object({ limit: z.number().int().min(1).max(20).default(5) }),
+      execute: async ({ limit }) => ({
+        activities: (workspaceContext?.activities ?? []).slice(0, limit),
+        count: workspaceContext?.activities.length ?? 0,
+        status: workspaceContext ? "available" : "not_connected",
       }),
     }),
 
@@ -137,7 +166,11 @@ function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, p
         const result = await runAgent({
           agentId: delegatedAgentId,
           goal,
-          context: { userId: "current-user", projectId },
+          context: {
+            userId,
+            projectId,
+            facts: { workspaceContext },
+          },
         });
         const delegatedAgent = getAgent(delegatedAgentId);
         return {
@@ -193,10 +226,10 @@ function createWorkspaceTools(projectId: string | undefined, agentId: AgentId, p
         body: z.string(),
       }),
       execute: async ({ recipient, subject }) => ({
-        status: "approved_pending_integration",
+        status: "not_sent_integration_missing",
         recipient,
         subject,
-        message: "Action validée et enregistrée. Gmail devra être connecté pour effectuer l’envoi réel.",
+        message: "Le provider Gmail n’est pas connecté : aucun email n’a été envoyé et aucune action externe n’est déclarée comme réalisée.",
       }),
     }),
   };
@@ -211,6 +244,8 @@ function getPublicStreamError(error: unknown) {
 }
 
 export async function POST(request: Request) {
+  const identity = await authenticateAiRequest(request);
+  if (!identity.ok) return aiAuthError(identity);
   try {
     const body = chatRequestSchema.parse(await request.json());
     const rawAgentId = body.agentId ?? "celian";
@@ -219,7 +254,7 @@ export async function POST(request: Request) {
     const projectId = body.projectId;
     const modelChoice = normalizeModelChoice(body.model);
     const projectMemory = projectId ? await getProjectMemory(projectId) : undefined;
-    const tools = createWorkspaceTools(projectId, agentId, projectMemory);
+    const tools = createWorkspaceTools(identity.userId, projectId, projectMemory, body.workspaceContext);
     const model = getProvider(modelChoice, agent.model);
     const messages = body.messages as UIMessage[];
 

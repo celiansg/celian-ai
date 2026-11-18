@@ -1,0 +1,34 @@
+{
+  "name": "Agents",
+  "description": "Workspace local-first premium pour prépresse, fichiers clients, agents IA spécialisés et BTS ERPC.",
+  "tokens": {
+    "color": {
+      "page": "#f3f6fb",
+      "panel": "#ffffff",
+      "ink": "#17213a",
+      "muted": "#7b88a0",
+      "line": "#e3e8f1",
+      "primary": "#3178f6",
+      "primaryDeep": "#245dd1",
+      "accent": "#635df1",
+      "success": "#129b64",
+      "warning": "#c57519",
+      "danger": "#c25570"
+    },
+    "radius": {
+      "sm": "10px",
+      "md": "14px",
+      "lg": "18px"
+    },
+    "typography": {
+      "body": "Geist, Inter, Segoe UI, sans-serif",
+      "display": "Geist, Inter, Segoe UI, sans-serif"
+    }
+  },
+  "decisions": [
+    "Conserver la structure claire du workspace Agents et réserver les accents colorés aux agents et aux états.",
+    "Utiliser une zone de dépôt inspirée du composant 21st.dev File Dropzone (id 19201), adaptée aux primitives existantes et au stockage local.",
+    "Privilégier des panneaux professionnels, des bordures discrètes, un contraste lisible et une animation minimale respectant reduced-motion.",
+    "Ne pas présenter le template BAT officiel tant que les octets originaux n'ont pas été fournis au projet."
+  ]
+}

@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DefaultChatTransport, type ChatStatus, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  lastAssistantMessageIsCompleteWithToolCalls,
+  type ChatStatus,
+  type UIMessage,
+} from "ai";
 import { useChat } from "@ai-sdk/react";
 import { AgentChat } from "@/components/agent-elements/agent-chat";
 import { InputBar, type InputBarProps } from "@/components/agent-elements/input-bar";
@@ -10,6 +16,17 @@ import type { ModelChoice } from "@/lib/ai/models";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentToolRenderer } from "@/components/agent-tool-renderer";
 import type { AgentMode } from "@/components/agent-mode-selector";
+import { listLocalFiles } from "@/lib/local-files/indexed-db";
+import {
+  createWorkspaceTask,
+  listWorkspaceActivities,
+  listWorkspaceProjects,
+  listWorkspaceTasks,
+} from "@/lib/workspace/repository";
+import { firebaseAuth } from "@/lib/firebase/client";
+import { getAiAuthorizationHeaders } from "@/lib/firebase/authorization";
+import { persistAgentTask } from "@/lib/ai/workspace-task";
+import { agentMaxSteps } from "@/lib/ai/config";
 
 type StagedFile = {
   id: string;
@@ -24,15 +41,34 @@ function getExtension(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
 }
 
-function isContinuationReady(messages: UIMessage[]) {
-  const lastMessage = messages[messages.length - 1];
-  if (!lastMessage || lastMessage.role !== "assistant") return false;
-  const candidate = lastMessage.parts[lastMessage.parts.length - 1] as { type?: string; state?: string } | undefined;
-  return Boolean(
-    candidate &&
-      ((candidate.type === "tool-Question" && candidate.state === "output-available") ||
-        candidate.state === "approval-responded"),
-  );
+function getPublicChatError(error: Error | undefined) {
+  if (!error) return null;
+  try {
+    const payload = JSON.parse(error.message) as { error?: unknown };
+    if (typeof payload.error === "string" && payload.error.length <= 240) return payload.error;
+  } catch {
+    // AI SDK errors are intentionally reduced to a stable user-facing message below.
+  }
+  const message = error.message.toLowerCase();
+  if (message.includes("connectez-vous") || message.includes("firebase auth")) {
+    return "Connectez-vous à Agents pour utiliser un fournisseur IA.";
+  }
+  if (message.includes("gemini") || message.includes("openai") || message.includes("provider")) {
+    return "Aucun fournisseur IA n’est configuré. Ajoutez une clé côté serveur puis réessayez.";
+  }
+  return "La conversation n’a pas pu aboutir. Réessayez.";
+}
+
+async function readWorkspaceContext() {
+  try {
+    await firebaseAuth?.authStateReady();
+    const [projects, tasks, activities, files] = await Promise.all([
+      listWorkspaceProjects(), listWorkspaceTasks(), listWorkspaceActivities(), listLocalFiles(),
+    ]);
+    return { projects, tasks, activities, files };
+  } catch {
+    return undefined;
+  }
 }
 
 export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefinition; availableProviders: { gemini: boolean; openai: boolean } }) {
@@ -41,6 +77,9 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [historyHydrated, setHistoryHydrated] = useState(false);
+  const automaticRequests = useRef(0);
+  const handledTaskCalls = useRef(new Set<string>());
   const stagedFilesRef = useRef(stagedFiles);
 
   useEffect(() => {
@@ -58,7 +97,13 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   const transport = useMemo(
     () => new DefaultChatTransport({
       api: "/api/chat",
-      body: { agentId: agent.id, mode, model: modelChoice },
+      headers: getAiAuthorizationHeaders,
+      body: async () => ({
+        agentId: agent.id,
+        mode,
+        model: modelChoice,
+        workspaceContext: await readWorkspaceContext(),
+      }),
     }),
     [agent.id, mode, modelChoice],
   );
@@ -69,13 +114,73 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
     status,
     stop,
     error,
+    setMessages,
     addToolApprovalResponse,
     addToolOutput,
   } = useChat({
     id: `agent-${agent.id}`,
     transport,
-    sendAutomaticallyWhen: ({ messages: nextMessages }) => isContinuationReady(nextMessages),
+    sendAutomaticallyWhen: (state) => {
+      if (automaticRequests.current >= agentMaxSteps) return false;
+      if (!lastAssistantMessageIsCompleteWithApprovalResponses(state)) {
+        const parts = state.messages.at(-1)?.parts ?? [];
+        const stepStart = parts.findLastIndex((part) => part.type === "step-start");
+        const hasClientTool = parts.slice(stepStart + 1).some((part) =>
+          part.type === "tool-Question" || part.type === "tool-createWorkspaceTask",
+        );
+        if (!hasClientTool || !lastAssistantMessageIsCompleteWithToolCalls(state)) return false;
+      }
+      automaticRequests.current += 1;
+      return true;
+    },
+    onToolCall: async ({ toolCall }) => {
+      if (toolCall.dynamic || toolCall.toolName !== "createWorkspaceTask") return;
+      const { toolCallId, input } = toolCall;
+      if (handledTaskCalls.current.has(toolCallId)) return;
+
+      const limited = handledTaskCalls.current.size >= agentMaxSteps;
+      if (!limited) handledTaskCalls.current.add(toolCallId);
+      const result = limited
+        ? { status: "not_persisted", message: "Limite de création atteinte pour cette demande." }
+        : await persistAgentTask(input, agent.id, {
+          listProjects: async () => {
+            await firebaseAuth?.authStateReady();
+            return listWorkspaceProjects();
+          },
+          createTask: async (task) => {
+            await firebaseAuth?.authStateReady();
+            return createWorkspaceTask(task);
+          },
+        });
+
+      void addToolOutput({ tool: "createWorkspaceTask", toolCallId, output: result });
+    },
   });
+
+  const conversationStorageKey = `agents-conversation-${agent.id}`;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(conversationStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as UIMessage[];
+        if (Array.isArray(parsed)) setMessages(parsed);
+      }
+    } catch {
+      // Une conversation corrompue ne doit pas empêcher l’ouverture de l’agent.
+    } finally {
+      setHistoryHydrated(true);
+    }
+  }, [conversationStorageKey, setMessages]);
+
+  useEffect(() => {
+    if (!historyHydrated) return;
+    try {
+      window.localStorage.setItem(conversationStorageKey, JSON.stringify(messages));
+    } catch {
+      // Le chat reste utilisable si le quota local est atteint.
+    }
+  }, [conversationStorageKey, historyHydrated, messages]);
 
   const stageFiles = useCallback((incoming: File[]) => {
     setAttachmentError(null);
@@ -116,6 +221,8 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   }, []);
 
   const handleSend = useCallback((message: { role: "user"; content: string }) => {
+    automaticRequests.current = 0;
+    handledTaskCalls.current.clear();
     const files = stagedFilesRef.current;
     if (files.length > 0) {
       const transfer = new DataTransfer();
@@ -162,12 +269,13 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   }), [agent.id, handlePaste, isDragOver, removeFile, stagedFiles]);
 
   const WorkspaceInputBar = useCallback((props: InputBarProps) => (
-    <InputBar {...props} placeholder={agent.placeholder} enableImagePreview />
+    <InputBar {...props} className="agent-input-bar" placeholder={agent.placeholder} enableImagePreview />
   ), [agent.placeholder]);
 
   const WorkspaceToolRenderer = useCallback((props: Parameters<typeof AgentToolRenderer>[0]) => (
     <AgentToolRenderer {...props} onApproval={handleApproval} />
   ), [handleApproval]);
+  const publicChatError = getPublicChatError(error ?? undefined);
 
   return (
     <div className="agent-workspace-page">
@@ -189,7 +297,7 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
             onSend={handleSend}
             status={status as ChatStatus}
             onStop={() => void stop()}
-            error={error ?? undefined}
+            error={publicChatError ? new Error(publicChatError) : undefined}
             className="agent-chat-root"
             showCopyToolbar
             emptyStatePosition="center"
@@ -216,10 +324,10 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
             }}
           />
         </div>
-        {(attachmentError || error) && (
+        {(attachmentError || publicChatError) && (
           <div className="agent-workspace-error" role="alert">
-            {attachmentError ?? "La conversation n’a pas pu aboutir. Réessayez ou vérifiez la clé du provider."}
-            {error ? <button type="button" onClick={() => window.location.reload()}>Réessayer</button> : null}
+            {attachmentError ?? publicChatError}
+            {publicChatError ? <button type="button" onClick={() => window.location.reload()}>Réessayer</button> : null}
           </div>
         )}
       </div>

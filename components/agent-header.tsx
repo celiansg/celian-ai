@@ -37,6 +37,8 @@ export function AgentHeader({
         </div>
       </div>
       <div className="agent-header-actions">
+        {agent.id === "prod" && <Link href="/bat" className="secondary-button">Nouveau BAT</Link>}
+        {agent.id === "client" && <Link href="/mail" className="secondary-button">Rédiger un mail</Link>}
         <span className="agent-tools-count"><Wrench size={13} aria-hidden="true" /> {agent.tools.length} outils</span>
         <AgentModeSelector value={mode} onChange={onModeChange} />
         <AgentModelPicker value={model} onChange={onModelChange} availableProviders={availableProviders} />

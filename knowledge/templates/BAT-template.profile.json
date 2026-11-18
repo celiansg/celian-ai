@@ -1,0 +1,22 @@
+{
+  "templateId": "bat-template-aflph-coloz",
+  "sourceFile": "BAT template(1).pdf",
+  "sourceSha256": "84A5A8A5868AEF8579397A0DB57BD16CECD0C3E0B3EEAEDE209396EA162AD661",
+  "status": "source-verified",
+  "mappingStatus": "v1-measured",
+  "pageCount": 1,
+  "pageSizePt": {
+    "width": 841.89,
+    "height": 595.276
+  },
+  "orientation": "landscape",
+  "format": "A4",
+  "pdfStandard": "PDF/X-4",
+  "fillableForm": false,
+  "sourceModified": false,
+  "notes": [
+    "Le fichier source est conservé inchangé.",
+    "Le mapping v1 est disponible dans BAT-template.mapping.v1.json.",
+    "Toute sortie doit être une nouvelle copie contrôlée et vérifiée visuellement."
+  ]
+}

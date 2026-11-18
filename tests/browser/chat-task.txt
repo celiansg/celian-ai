@@ -1,0 +1,28 @@
+async (page) => {
+  const title = "Contrôle BAT depuis le chat";
+  const call = { type: "tool-input-available", toolCallId: "task-smoke-1", toolName: "createWorkspaceTask", input: { title, priority: "high" } };
+  let requests = 0;
+  await page.route("**/api/chat", async (route) => {
+    requests += 1;
+    const body = route.request().postDataJSON();
+    const output = body.messages.flatMap((message) => message.parts).find((part) => part.toolCallId === call.toolCallId)?.output;
+    const persisted = body.workspaceContext?.tasks.some((task) => task.id === output?.id && task.title === title);
+    const response = requests === 1
+      ? [{ type: "start", messageId: "smoke-assistant" }, { type: "start-step" }, call, { type: "finish-step" }, { type: "finish", finishReason: "tool-calls" }]
+      : [{ type: "start-step" }, { type: "text-start", id: "confirmation" }, { type: "text-delta", id: "confirmation", delta: output?.status === "created" && persisted ? "Écriture réelle confirmée" : "Résultat de stockage absent" }, { type: "text-end", id: "confirmation" }, { type: "finish-step" }, { type: "finish", finishReason: "stop" }];
+    await route.fulfill({ headers: { "content-type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" }, body: response.map((chunk) => "data: " + JSON.stringify(chunk) + "\n\n").join("") + "data: [DONE]\n\n" });
+  });
+  await page.goto("http://localhost:3113/agents/prod");
+  const composer = page.getByPlaceholder(/Demande à @Prod/);
+  await composer.fill("Crée une tâche de contrôle BAT");
+  await composer.press("Enter");
+  await page.getByText("Écriture réelle confirmée", { exact: true }).waitFor({ timeout: 15000 });
+  if (requests !== 2) throw new Error("Nombre de requêtes inattendu : " + requests);
+  await page.goto("http://localhost:3113/tasks");
+  await page.getByText(title, { exact: true }).waitFor();
+  await page.reload();
+  const task = page.getByRole("article").filter({ hasText: title });
+  await task.getByText("@Prod", { exact: true }).waitFor();
+  if (await task.count() !== 1) throw new Error("La tâche attendue est absente ou dupliquée");
+  return "OK : écriture IndexedDB, reprise du chat, tâche unique retrouvée après rechargement.";
+}

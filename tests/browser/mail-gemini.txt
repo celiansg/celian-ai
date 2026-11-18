@@ -1,0 +1,34 @@
+async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:3118/mail");
+  await page.getByRole("button", { name: "Préparer le brouillon", exact: true }).click();
+  const body = page.getByRole("textbox", { name: "Corps du mail" });
+  await body.fill("Brouillon manuel à conserver");
+  await page.getByText("Rédaction assistée avec Gemini", { exact: true }).click();
+  const assist = page.getByRole("button", { name: "Rédiger avec Gemini" });
+  if (!(await assist.isDisabled())) throw new Error("L’envoi doit attendre le consentement");
+  await page.getByRole("textbox", { name: "Informations à transmettre" }).fill("Visuel en attente de relecture.");
+  await page.getByRole("textbox", { name: "Consignes de rédaction" }).fill("Demande une relecture sans prix.");
+  await page.getByRole("checkbox", { name: /J’autorise Gemini/ }).check();
+  const firstResponse = page.waitForResponse("**/api/mail/draft");
+  await assist.click();
+  if ((await firstResponse).status() !== 503) throw new Error("Le serveur de test doit être sans clé Gemini");
+  await page.getByRole("alert").filter({ hasText: "Gemini n’est pas configuré" }).waitFor();
+  if (await body.inputValue() !== "Brouillon manuel à conserver") throw new Error("Le brouillon local a été perdu");
+
+  await page.route("**/api/mail/draft", async (route) => {
+    const input = route.request().postDataJSON();
+    if (!input.consent || input.facts !== "Visuel en attente de relecture." || input.body || input.file) {
+      throw new Error("Données envoyées inattendues");
+    }
+    await route.fulfill({ json: {
+      subject: "Bon à tirer à relire", body: "Bonjour, pouvez-vous relire le visuel ?",
+      assumptions: [], sourceFactsUsed: ["Visuel en attente de relecture."], warnings: [],
+    } });
+  });
+  await assist.click();
+  await page.getByText("Informations utilisées et points à relire", { exact: true }).click();
+  await page.getByRole("listitem").filter({ hasText: "Visuel en attente de relecture." }).waitFor();
+  if (await body.inputValue() !== "Bonjour, pouvez-vous relire le visuel ?") throw new Error("Réponse structurée non chargée");
+  return "Consentement, HTTP 503 réel et conservation du manuel. Réponse contrôlée affichée dans l’éditeur.";
+}

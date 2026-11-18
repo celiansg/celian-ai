@@ -35,7 +35,7 @@ export function AgentToolRenderer({
             <button type="button" className="agent-approval-approve" onClick={() => onApproval?.(approvalId!, true)}><Check size={14} /> Approuver</button>
           </div>
         ) : (
-          <p className={isRejected ? "agent-approval-result rejected" : "agent-approval-result"}><ShieldAlert size={14} /> {isRejected ? "Action refusée." : isApproved ? "Action approuvée et enregistrée." : "Action traitée."}</p>
+          <p className={isRejected ? "agent-approval-result rejected" : "agent-approval-result"}><ShieldAlert size={14} /> {isRejected ? "Action refusée." : isApproved ? "Validation reçue. Aucun email n’a été envoyé : Gmail n’est pas connecté." : "Action traitée."}</p>
         )}
       </section>
     );

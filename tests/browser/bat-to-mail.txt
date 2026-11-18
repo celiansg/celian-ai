@@ -1,0 +1,60 @@
+async (page) => {
+  const origin = "http://localhost:3117";
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/bat");
+  await page.getByRole("textbox", { name: "Commande", exact: true }).fill("QA-MAIL-42");
+  await page.getByRole("textbox", { name: "Produit", exact: true }).fill("Calendrier PVC");
+  await page.getByRole("button", { name: "Générer le brouillon" }).click();
+  await page.getByText("Brouillon enregistré sur cet appareil", { exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole("button", { name: /Ouvrir BAT_QA-MAIL-42_.*_v1\.pdf/ }).click();
+  await page.getByRole("link", { name: "Préparer le mail avec @Client" }).click();
+  await page.getByRole("heading", { name: "Rédiger un mail" }).waitFor();
+
+  const expectedMail = "Pouvez-vous relire la page 1 et m’indiquer les éventuels ajustements ?";
+  const referenceFile = page.getByRole("link", { name: "Télécharger le BAT" });
+  await referenceFile.waitFor();
+  if (!(await referenceFile.getAttribute("download"))?.includes("QA-MAIL-42")) throw new Error("PDF associé incorrect");
+  if (await page.getByRole("textbox", { name: "Référence de commande" }).inputValue() !== "QA-MAIL-42") throw new Error("Référence absente");
+  if (await page.getByRole("textbox", { name: "Produit", exact: true }).inputValue() !== "Calendrier PVC") throw new Error("Produit absent");
+
+  const posts = [];
+  page.on("request", (request) => { if (request.method() === "POST") posts.push(request.url()); });
+  await page.getByRole("button", { name: "Préparer le brouillon" }).click();
+  const subject = await page.getByRole("textbox", { name: "Objet", exact: true }).inputValue();
+  if (subject !== "Bon à tirer — Calendrier PVC · commande QA-MAIL-42") throw new Error("Objet inattendu : " + subject);
+  const body = page.getByRole("textbox", { name: "Corps du mail" });
+  if (/joint|envoyé/i.test(await body.inputValue())) throw new Error("Le brouillon affirme une action non réalisée");
+  await body.fill(expectedMail);
+  await page.getByRole("button", { name: "Copier le mail" }).click();
+  await page.getByText("Objet et message copiés.", { exact: true }).waitFor();
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  if (!clipboard.includes(expectedMail) || !clipboard.includes(subject)) throw new Error("Presse-papiers incorrect");
+  const saveVersion = page.getByRole("button", { name: "Enregistrer une version" });
+  await saveVersion.click();
+  await page.getByText("Version enregistrée sur cet appareil.", { exact: true }).waitFor();
+  const newerMail = "Pouvez-vous me confirmer votre accord sur cette version ?";
+  await body.fill(newerMail);
+  await saveVersion.click();
+  await page.getByText("Version enregistrée sur cet appareil.", { exact: true }).waitFor();
+  await page.goto(origin + "/mail");
+  const versions = page.getByRole("link", { name: "Rouvrir " + subject, exact: true });
+  await versions.nth(1).waitFor();
+  if (await versions.count() !== 2) throw new Error("Les deux versions archivées sont attendues");
+  await versions.nth(1).click();
+  await referenceFile.waitFor();
+  if (await body.inputValue() !== expectedMail) throw new Error("La première version a été écrasée");
+  await page.reload();
+  await referenceFile.waitFor();
+  if (await body.inputValue() !== expectedMail) throw new Error("La version n’a pas été restaurée après rechargement");
+  if (!(await referenceFile.getAttribute("download"))?.includes("QA-MAIL-42")) throw new Error("BAT non restauré");
+  if (posts.length) throw new Error("Le brouillon local a déclenché un POST");
+  if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error("Débordement mobile");
+
+  await page.goto(origin + "/mail?bat=00000000-0000-0000-0000-000000000000");
+  await page.getByRole("alert").filter({ hasText: "Ce BAT est indisponible" }).waitFor();
+  await page.getByRole("button", { name: "Préparer le brouillon" }).click();
+  await page.getByRole("textbox", { name: "Corps du mail" }).waitFor();
+  return "BAT vers brouillon éditable, copie et historique restauré avec le BAT, aucune requête d’envoi.";
+}

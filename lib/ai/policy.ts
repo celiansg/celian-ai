@@ -42,7 +42,7 @@ export function formatProjectMemory(memory?: ProjectMemory) {
 
 export function buildAgentSystemPrompt({ agent, projectId, memory, mode }: { agent: AgentDefinition; projectId?: string; memory?: ProjectMemory; mode: "agent" | "plan" }) {
   return [
-    `Tu es ${agent.handle}, ${agent.role}, dans Célian AI.`,
+    `Tu es ${agent.handle}, ${agent.role}, dans Agents.`,
     agent.instructions,
     `Style de réponse : ${responseStyleInstructions[agent.behavior.responseStyle]}`,
     `Tes priorités : ${agent.behavior.priorities.join(" ; ")}.`,

@@ -10,7 +10,7 @@ function event(type: AgentEventType, agentId: AgentId, summary: string, metadata
   return { id: crypto.randomUUID(), type, agentId, summary, metadata, createdAt: new Date().toISOString() };
 }
 
-export async function runAgent({ agentId, goal, context }: { agentId: AgentId; goal: string; context: AgentContext }): Promise<AgentRunResult> {
+export async function runAgent({ agentId, goal, context, handoffDepth = 0 }: { agentId: AgentId; goal: string; context: AgentContext; handoffDepth?: number }): Promise<AgentRunResult> {
   const definition = getAgent(agentId);
   const provider = getAIProvider(resolveProvider(definition.provider));
   const projectMemory = context.projectId ? await getProjectMemory(context.projectId) : undefined;
@@ -31,15 +31,28 @@ export async function runAgent({ agentId, goal, context }: { agentId: AgentId; g
       const tool = getTool(response.toolCall.name);
       events.push(event("tool_called", agentId, `${definition.handle} utilise ${response.toolCall.name}`, { input: response.toolCall.input }));
       if (tool) {
-        const result = await tool.execute(response.toolCall.input);
+        const result = await tool.execute(response.toolCall.input, context);
         events.push(event("tool_result", agentId, `${response.toolCall.name} a renvoyé un résultat structuré`, { result }));
+      } else {
+        events.push(event("tool_result", agentId, `${response.toolCall.name} n’est pas disponible dans cette exécution`, {
+          status: "not_connected",
+        }));
       }
     }
 
     if (response.handoff) {
       const nextAgent = getAgent(response.handoff);
       events.push(event("handoff_started", agentId, `${definition.handle} transmet le dossier à ${nextAgent.handle}`, { to: response.handoff }));
-      const delegated = await runAgent({ agentId: response.handoff, goal, context: { ...context, facts: { ...(context.facts ?? {}), delegatedFrom: agentId } } });
+      if (handoffDepth >= 3) {
+        events.push(event("agent_failed", agentId, `${definition.handle} a atteint la limite de délégation`));
+        return { status: "failed", answer, events };
+      }
+      const delegated = await runAgent({
+        agentId: response.handoff,
+        goal,
+        handoffDepth: handoffDepth + 1,
+        context: { ...context, facts: { ...(context.facts ?? {}), delegatedFrom: agentId } },
+      });
       events.push(...delegated.events);
       answer = `${answer} ${delegated.answer}`.trim();
       if (delegated.status === "waiting_for_approval") return { ...delegated, answer, events };

@@ -1,0 +1,29 @@
+{
+  "templateId": "bat-template-aflph-coloz",
+  "version": "1.1.0",
+  "page": {
+    "widthPt": 841.89,
+    "heightPt": 595.276,
+    "origin": "bottom-left"
+  },
+  "fields": {
+    "company": { "x": 90, "y": 458.5, "maxWidth": 174 },
+    "order": { "x": 90, "y": 442, "maxWidth": 174 },
+    "date": { "x": 90, "y": 425.5, "maxWidth": 174 },
+    "contact": { "x": 90, "y": 409, "maxWidth": 174 },
+    "file": { "x": 90, "y": 348, "maxWidth": 174 },
+    "product": { "x": 90, "y": 331.5, "maxWidth": 174 },
+    "material": { "x": 90, "y": 315, "maxWidth": 174 },
+    "finish": { "x": 90, "y": 298.5, "maxWidth": 174 },
+    "format": { "x": 90, "y": 282, "maxWidth": 174 },
+    "quantity": { "x": 90, "y": 265.5, "maxWidth": 174 },
+    "remarks": { "x": 21, "y": 207, "maxWidth": 242, "lineHeight": 10, "maxLines": 5 }
+  },
+  "visual": { "x": 291, "y": 22, "width": 523, "height": 522 },
+  "status": "measured-from-source-render",
+  "notes": [
+    "Les coordonnées sont en points PDF depuis le bas gauche.",
+    "Les coordonnées sont une première version contrôlée visuellement et doivent être revalidées après tout changement du template.",
+    "La zone visuelle de droite laisse une marge intérieure autour du cadre du modèle."
+  ]
+}

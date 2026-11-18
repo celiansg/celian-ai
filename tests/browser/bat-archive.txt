@@ -1,0 +1,62 @@
+async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:3115/projects");
+
+  // Seed the v1 library to exercise the real upgrade on the atelier's first visit.
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open("agents-local-workspace", 1);
+    request.onupgradeneeded = () => {
+      const store = request.result.createObjectStore("files", { keyPath: "id" });
+      store.createIndex("createdAt", "createdAt");
+      store.createIndex("kind", "kind");
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("files", "readwrite");
+      const now = new Date().toISOString();
+      transaction.objectStore("files").add({
+        id: "legacy-bat-smoke", name: "source-historique.txt", kind: "text",
+        mimeType: "text/plain", size: 7, lastModified: 0, sha256: "", createdAt: now,
+        blob: new Blob(["Archive"], { type: "text/plain" }),
+      });
+      transaction.onabort = () => { database.close(); reject(transaction.error); };
+      transaction.oncomplete = () => { database.close(); resolve(); };
+    };
+  }));
+
+  await page.getByRole("textbox", { name: "Nom du projet" }).fill("Projet BAT vérification");
+  await page.getByRole("button", { name: "Créer le projet", exact: true }).click();
+  await page.getByRole("link", { name: "BAT du projet Projet BAT vérification" }).click();
+  const project = page.getByRole("combobox", { name: "Projet", exact: true });
+  await project.locator("option").filter({ hasText: "Projet BAT vérification" }).waitFor({ state: "attached" });
+  if (await project.inputValue() !== new URL(page.url()).searchParams.get("project")) {
+    throw new Error("Le projet du lien n’est pas sélectionné");
+  }
+
+  async function generate(revision, quantity) {
+    await page.getByRole("textbox", { name: "Société", exact: true }).fill("Atelier Épreuve");
+    await page.getByRole("textbox", { name: "Commande", exact: true }).fill("BAT-077");
+    await page.getByRole("textbox", { name: "Quantité", exact: true }).fill(quantity);
+    await page.getByRole("button", { name: "Générer le brouillon", exact: true }).click();
+    await page.getByText("Brouillon enregistré sur cet appareil", { exact: true }).waitFor();
+    const filename = await page.getByRole("link", { name: "Télécharger le PDF" }).getAttribute("download");
+    if (!filename?.endsWith(`_v${revision}.pdf`)) throw new Error("Version inattendue : " + filename);
+  }
+
+  await generate(1, "20");
+  await page.reload();
+  await page.getByRole("button", { name: /Ouvrir BAT_BAT-077_.*_v1\.pdf/ }).click();
+  await page.getByRole("link", { name: "Télécharger le PDF" }).waitFor();
+  await generate(2, "30");
+  await page.reload();
+  await page.getByRole("button", { name: /Ouvrir BAT_BAT-077_.*_v1\.pdf/ }).waitFor();
+  await page.getByRole("button", { name: /Ouvrir BAT_BAT-077_.*_v2\.pdf/ }).waitFor();
+
+  await page.goto("http://localhost:3115/files");
+  await page.getByText("source-historique.txt", { exact: true }).waitFor();
+  const files = page.getByRole("article").filter({ hasText: /BAT_BAT-077_.*_v[12]\.pdf/ });
+  await files.first().getByText("Projet BAT vérification", { exact: true }).waitFor();
+  if (await files.count() !== 2) throw new Error("Les deux versions manquent dans la bibliothèque");
+  return "Migration v1 → v2, deux BAT archivés et projet retrouvé après rechargement.";
+}

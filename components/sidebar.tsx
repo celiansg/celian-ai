@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Icon } from "./icon";
 
@@ -23,8 +24,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       {open ? <button className="mobile-backdrop" aria-label="Fermer le menu" onClick={onClose} /> : null}
       <aside className={`sidebar ${open ? "is-open" : ""}`}>
         <div className="brand-block">
-          <div className="brand-mark"><Icon name="sparkles" size={21} strokeWidth={2.3} /></div>
-          <div><div className="brand-name">Célian AI</div><div className="brand-subtitle">Votre espace de travail augmenté</div></div>
+          <div className="brand-mark brand-logo-mark">
+            <Image className="brand-logo-image" src="/branding/agents-logo.png" alt="" aria-hidden="true" width={74} height={74} />
+          </div>
+          <div><div className="brand-name">Agents</div><div className="brand-subtitle">Votre espace de travail augmenté</div></div>
         </div>
 
         <nav className="main-nav" aria-label="Navigation principale">

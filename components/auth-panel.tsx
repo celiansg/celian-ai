@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import { sendMagicLink, signInWithGoogle } from "@/lib/firebase/auth";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { Icon } from "./icon";
@@ -40,5 +41,5 @@ export function AuthPanel() {
 
   if (!firebaseConfigured) return <div className="auth-message">Firebase n’est pas encore configuré dans les variables d’environnement.</div>;
 
-  return <div className="auth-panel"><div className="auth-brand"><span><Icon name="sparkles" size={19} /></span><strong>Célian AI</strong></div><h1>Votre <GradientText as="span">espace de travail augmenté</GradientText></h1><p>Connectez-vous pour retrouver vos projets, tâches et conversations.</p><button type="button" className="google-button" onClick={google} disabled={loading} aria-busy={loading}><Icon name="user" size={16} />Continuer avec Google</button><div className="auth-divider"><span>ou avec votre email</span></div><form onSubmit={submit}><label htmlFor="auth-email">Adresse email</label><input id="auth-email" name="email" autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="vous@exemple.fr" required /><LiquidMetalButton className="auth-submit-liquid" fullWidth type="submit" disabled={loading} label={loading ? "Envoi en cours…" : "Recevoir un lien magique"} /></form>{status ? <div className="auth-status" role="status" aria-live="polite">{status}</div> : null}<small>Connexion sécurisée par Firebase Authentication.</small></div>;
+  return <div className="auth-panel"><div className="auth-brand"><span className="auth-brand-mark"><Image className="brand-logo-image" src="/branding/agents-logo.png" alt="" aria-hidden="true" width={74} height={74} /></span><strong>Agents</strong></div><h1>Votre <GradientText as="span">espace de travail augmenté</GradientText></h1><p>Connectez-vous pour retrouver vos projets, tâches et conversations.</p><button type="button" className="google-button" onClick={google} disabled={loading} aria-busy={loading}><Icon name="user" size={16} />Continuer avec Google</button><div className="auth-divider"><span>ou avec votre email</span></div><form onSubmit={submit}><label htmlFor="auth-email">Adresse email</label><input id="auth-email" name="email" autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="vous@exemple.fr" required /><LiquidMetalButton className="auth-submit-liquid" fullWidth type="submit" disabled={loading} label={loading ? "Envoi en cours…" : "Recevoir un lien magique"} /></form>{status ? <div className="auth-status" role="status" aria-live="polite">{status}</div> : null}<small>Connexion sécurisée par Firebase Authentication.</small></div>;
 }
