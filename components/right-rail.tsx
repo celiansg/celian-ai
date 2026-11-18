@@ -43,8 +43,6 @@ export function RightRail() {
     <section className="rail-section overview-section">
       <div className="rail-heading"><div><span className="rail-heading-icon pink"><Icon name="barChart" size={17} /></span><h2>Vue d’ensemble</h2></div><span className="rail-select">Aujourd’hui</span></div>
       <div className="stats-grid">
-        <div className="stat-card stat-blue"><Icon name="mail" size={19} /><strong>0</strong><span>mails à traiter</span></div>
-        <div className="stat-card stat-pink"><Icon name="clock" size={19} /><strong>0</strong><span>actions en attente</span></div>
         <div className="stat-card stat-rose"><Icon name="calendar" size={19} /><strong>{dueCount}</strong><span>échéances</span></div>
         <div className="stat-card stat-green"><Icon name="checkCircle" size={19} /><strong>{todayTasks.length}</strong><span>tâches du jour</span></div>
       </div>

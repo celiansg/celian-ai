@@ -15,8 +15,6 @@ const navItems = [
   { href: "/settings", label: "Paramètres", icon: "settings" },
 ];
 
-const spaces = ["Personnel"];
-
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   return (
@@ -36,12 +34,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             return <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`} onClick={onClose}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>;
           })}
         </nav>
-
-        <div className="sidebar-divider" />
-        <div className="spaces-heading"><span>Espaces</span></div>
-        <div className="space-list">
-          {spaces.map((space, index) => <div key={space} className="space-item active"><span className={`space-dot space-dot-${index}`} /><span>{space}</span></div>)}
-        </div>
 
       </aside>
     </>
