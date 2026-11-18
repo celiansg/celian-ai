@@ -1,31 +1,49 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { completeGoogleRedirect, sendMagicLink, signInWithGoogle } from "@/lib/firebase/auth";
+import { useRouter, useSearchParams } from "next/navigation";
+import { completeGoogleRedirect, sendMagicLink, signInWithGoogle, subscribeToAuthState } from "@/lib/firebase/auth";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { Icon } from "./icon";
 import { GradientText } from "./ui/gradient-text";
 import { LiquidMetalButton } from "./ui/liquid-metal-button";
 
 export function AuthPanel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const nextPath = (() => {
+    const requested = searchParams.get("next");
+    return requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+  })();
+
+  const goToWorkspace = useCallback(() => {
+    router.replace(nextPath);
+  }, [nextPath, router]);
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = subscribeToAuthState((user) => {
+      if (active && user) goToWorkspace();
+    });
     completeGoogleRedirect()
       .then((result) => {
-        if (active && result?.user) setStatus("Connexion réussie. Redirection…");
+        if (active && result?.user) {
+          setStatus("Connexion réussie. Redirection…");
+          goToWorkspace();
+        }
       })
       .catch((error) => {
         if (active) setStatus(error instanceof Error ? error.message : "Impossible de finaliser la connexion Google.");
       });
     return () => {
       active = false;
+      unsubscribe?.();
     };
-  }, []);
+  }, [goToWorkspace]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -44,8 +62,11 @@ export function AuthPanel() {
   async function google() {
     setLoading(true);
     try {
-      await signInWithGoogle();
+      const result = await signInWithGoogle();
       setStatus("Redirection vers Google…");
+      // Sur desktop, le popup revient dans cette page ; sur mobile, la
+      // redirection est traitée par l’effet ci-dessus au retour de Google.
+      if (result) goToWorkspace();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Impossible de se connecter avec Google.");
     } finally {
