@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
-import { sendMagicLink, signInWithGoogle } from "@/lib/firebase/auth";
+import { completeGoogleRedirect, sendMagicLink, signInWithGoogle } from "@/lib/firebase/auth";
 import { firebaseConfigured } from "@/lib/firebase/client";
 import { Icon } from "./icon";
 import { GradientText } from "./ui/gradient-text";
@@ -12,6 +12,20 @@ export function AuthPanel() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    completeGoogleRedirect()
+      .then((result) => {
+        if (active && result?.user) setStatus("Connexion réussie. Redirection…");
+      })
+      .catch((error) => {
+        if (active) setStatus(error instanceof Error ? error.message : "Impossible de finaliser la connexion Google.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -31,7 +45,7 @@ export function AuthPanel() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      setStatus("Connexion réussie.");
+      setStatus("Redirection vers Google…");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Impossible de se connecter avec Google.");
     } finally {

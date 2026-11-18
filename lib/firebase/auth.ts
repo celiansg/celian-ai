@@ -2,9 +2,11 @@ import {
   GoogleAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
+  getRedirectResult,
   sendSignInLinkToEmail,
   signInWithEmailLink,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
@@ -17,7 +19,26 @@ const emailLinkSettings = {
 
 export async function signInWithGoogle() {
   if (!firebaseAuth) throw new Error("Firebase Auth n’est pas configuré.");
-  return signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+  const provider = new GoogleAuthProvider();
+  // Les navigateurs mobiles et les webviews intégrées bloquent fréquemment
+  // les popups. La redirection conserve le même parcours utilisateur sans
+  // dépendre d'une nouvelle fenêtre.
+  const isMobile =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(max-width: 768px)").matches ||
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+
+  if (isMobile) {
+    await signInWithRedirect(firebaseAuth, provider);
+    return null;
+  }
+
+  return signInWithPopup(firebaseAuth, provider);
+}
+
+export async function completeGoogleRedirect() {
+  if (!firebaseAuth) return null;
+  return getRedirectResult(firebaseAuth);
 }
 
 export async function sendMagicLink(email: string) {
