@@ -36,20 +36,25 @@ export async function signInWithGoogle() {
   if (!firebaseAuth) throw new Error("Firebase Auth n’est pas configuré.");
   await ensureAuthPersistence();
   const provider = new GoogleAuthProvider();
-  // Les navigateurs mobiles et les webviews intégrées bloquent fréquemment
-  // les popups. La redirection conserve le même parcours utilisateur sans
-  // dépendre d'une nouvelle fenêtre.
-  const isMobile =
-    typeof window !== "undefined" &&
-    (window.matchMedia("(max-width: 768px)").matches ||
-      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+  try {
+    // Popup first keeps the Firebase session on the app origin and avoids
+    // Safari/PWA redirect storage restrictions when the browser allows it.
+    return await signInWithPopup(firebaseAuth, provider);
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    const canFallbackToRedirect = [
+      "auth/popup-blocked",
+      "auth/popup-closed-by-user",
+      "auth/cancelled-popup-request",
+      "auth/operation-not-supported-in-this-environment",
+    ].some((candidate) => code.includes(candidate));
+    if (!canFallbackToRedirect) throw error;
 
-  if (isMobile) {
+    // Some mobile browsers block popups even from a direct tap. Keep the
+    // redirect path as a fallback for those environments.
     await signInWithRedirect(firebaseAuth, provider);
     return null;
   }
-
-  return signInWithPopup(firebaseAuth, provider);
 }
 
 export async function completeGoogleRedirect() {
