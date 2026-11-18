@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSearch, Info, XCircle } from "lucide-react";
 import { preflightPdf, preflightProfiles, preflightStatusLabel, type PreflightProfile, type PreflightReport } from "@/lib/bat/preflight";
 import { generatePreflightReportPdf } from "@/lib/bat/report";
+import { PdfDropzone } from "@/components/pdf-dropzone";
 import { formatFileSize } from "@/lib/local-files/indexed-db";
 
 function issueIcon(severity: string) {
@@ -61,14 +62,14 @@ export function PreflightPanel() {
   }
 
   return (
-    <section className="preflight-panel" aria-labelledby="preflight-title">
+    <section id="bat-preflight" className="preflight-panel" aria-labelledby="preflight-title">
       <div className="preflight-head">
-        <div><div className="eyebrow">Contrôle de production</div><h2 id="preflight-title">Préflight PDF</h2><p>Mesure les pages, boxes, rotations, annotations et fonds perdus sans modifier le fichier original.</p></div>
+        <div><div className="eyebrow">Étape 1 · facultative</div><h2 id="preflight-title">Contrôler le PDF</h2><p>Mesure les pages, boxes, rotations, annotations et fonds perdus sans modifier le fichier original.</p></div>
         <FileSearch size={22} aria-hidden="true" />
       </div>
       <div className="preflight-controls">
         <label>Profil<select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={busy}><option value="generic">{preflightProfiles.generic.label}</option><option value="a4Landscape">{preflightProfiles.a4Landscape.label}</option><option value="a4Portrait">{preflightProfiles.a4Portrait.label}</option><option value="digitalPrint">{preflightProfiles.digitalPrint.label}</option></select></label>
-        <label className="preflight-file">PDF à contrôler<input type="file" accept=".pdf,application/pdf" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void analyze(file); }} /></label>
+        <div className="preflight-file"><PdfDropzone label="Choisir le PDF à contrôler" hint="25 Mo maximum · le fichier original ne sera pas modifié" disabled={busy} onFile={(file) => void analyze(file)} /></div>
       </div>
       {busy && <p className="preflight-feedback" role="status">Analyse sécurisée du PDF en cours…</p>}
       {error && <p className="preflight-feedback error" role="alert">{error}</p>}

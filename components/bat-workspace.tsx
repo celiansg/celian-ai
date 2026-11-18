@@ -11,6 +11,7 @@ import type { LocalProject } from "@/lib/local-workspace/types";
 import { listWorkspaceProjects } from "@/lib/workspace/repository";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { PdfPreview } from "./pdf-preview";
+import { PdfDropzone } from "./pdf-dropzone";
 import styles from "./bat-workspace.module.css";
 
 type Source = { name: string; document: PDFDocument };
@@ -153,11 +154,11 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
   }
 
   return (
-    <div>
+    <div id="bat-generate">
       <header className="standalone-head">
         <div>
-          <div className="eyebrow">Atelier prépresse</div>
-          <h1>Nouveau BAT</h1>
+          <div className="eyebrow">Étape 4 · action principale</div>
+          <h1>Créer le BAT officiel</h1>
           <p>Modèle officiel AFLPH Coloz · Révision {version} · A4 paysage</p>
         </div>
       </header>
@@ -206,13 +207,7 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
                 </select>
               </label>
             )}
-            <label className={styles.wide}>Ajouter un PDF depuis cet appareil
-              <input type="file" accept=".pdf,application/pdf" onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = "";
-                if (file) void loadSource(async () => file);
-              }} />
-            </label>
+            <div className={styles.wide}><PdfDropzone label="Ajouter le PDF client" hint="15 Mo maximum · PDF non protégé · 1 à 50 pages" maxBytes={15 * 1024 * 1024} disabled={Boolean(busy) || !available} onFile={(file) => void loadSource(async () => file)} /></div>
             {libraryUnavailable && <p className={styles.wide}>La bibliothèque locale est indisponible. Vous pouvez choisir un fichier sur cet appareil.</p>}
             {source && (
               <div className={styles.wide}>

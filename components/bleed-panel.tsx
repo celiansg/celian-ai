@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Download, Maximize2 } from "lucide-react";
 import { addBleedToPdf, type BleedMethod } from "@/lib/bat/bleed";
+import { PdfDropzone } from "@/components/pdf-dropzone";
 
 export function BleedPanel() {
   const [bleedMm, setBleedMm] = useState("3");
@@ -32,8 +33,8 @@ export function BleedPanel() {
   }
 
   return (
-    <section className="bleed-panel" aria-labelledby="bleed-title">
-      <div className="bleed-head"><div><div className="eyebrow">Préparation mesurable</div><h2 id="bleed-title">Ajouter un fond perdu</h2><p>Crée une nouvelle copie PDF avec une zone périphérique. L’original reste inchangé.</p></div><Maximize2 size={22} aria-hidden="true" /></div>
+    <section id="bat-bleed" className="bleed-panel" aria-labelledby="bleed-title">
+      <div className="bleed-head"><div><div className="eyebrow">Étape 2 · facultative</div><h2 id="bleed-title">Ajouter un fond perdu</h2><p>Crée une nouvelle copie PDF avec une zone périphérique. L’original reste inchangé.</p></div><Maximize2 size={22} aria-hidden="true" /></div>
       <div className="bleed-warning"><AlertTriangle size={16} aria-hidden="true" /><span>Cette fonction rasterise la page. Vérifiez les petits textes, QR codes et couleurs avant production.</span></div>
       <div className="bleed-controls">
         <label>Fond perdu (mm)<input type="number" min="0.1" max="20" step="0.1" value={bleedMm} onChange={(event) => setBleedMm(event.target.value)} disabled={busy} /></label>
@@ -41,7 +42,7 @@ export function BleedPanel() {
             <label>Méthode<select value={method} onChange={(event) => setMethod(event.target.value as BleedMethod)} disabled={busy}><option value="edge_repeat">Répéter le dernier pixel</option><option value="edge_stretch">Étirer le bord</option><option value="mirror">Effet miroir</option><option value="blank">Zone blanche</option></select></label>
         <label>Pages<select value={allPages ? "all" : "one"} onChange={(event) => setAllPages(event.target.value === "all")} disabled={busy}><option value="all">Toutes les pages</option><option value="one">Une page</option></select></label>
         {!allPages && <label>Numéro<input type="number" min="1" value={page} onChange={(event) => setPage(event.target.value)} disabled={busy} /></label>}
-        <label className="bleed-file">PDF source<input type="file" accept=".pdf,application/pdf" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void generate(file); }} /></label>
+        <div className="bleed-file"><PdfDropzone label="Choisir le PDF à préparer" hint="15 Mo maximum · une nouvelle copie sera créée" disabled={busy} onFile={(file) => void generate(file)} /></div>
       </div>
       {busy && <p className="bleed-feedback" role="status">Rasterisation à {dpi} DPI en cours…</p>}
       {error && <p className="bleed-feedback error" role="alert">{error}</p>}
