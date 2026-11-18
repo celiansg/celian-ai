@@ -2,6 +2,12 @@
 @import "tailwindcss/utilities.css";
 @import "../components/agent-elements/agent-ui.css";
 
+.bleed-panel { margin-bottom: 16px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }
+.bleed-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }.bleed-head h2 { margin: 2px 0 5px; font-size: 18px; }.bleed-head p { margin: 0; color: var(--muted); font-size: 13px; }.bleed-head > svg { color: var(--blue); }
+.bleed-warning { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border-radius: 10px; color: #805400; background: #fff8e8; font-size: 12px; }.bleed-controls { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-top: 14px; }.bleed-controls label { display: grid; gap: 5px; color: var(--ink); font-size: 12px; font-weight: 700; }.bleed-controls input, .bleed-controls select { width: 100%; min-height: 40px; box-sizing: border-box; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: #f8faff; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; }.bleed-controls .bleed-file { grid-column: 1 / -1; }.bleed-feedback { margin: 12px 0 0; color: var(--muted); font-size: 13px; }.bleed-feedback.error { color: #b42318; }.bleed-result { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; padding: 11px 12px; border-radius: 10px; color: #087443; background: #effbf5; font-size: 12px; }.bleed-result span { flex: 1 1 360px; color: #52617d; }.bleed-result .primary-button { flex: 0 0 auto; }
+
+@media (max-width: 700px) { .bleed-controls { grid-template-columns: minmax(0, 1fr); }.bleed-controls .bleed-file { grid-column: auto; } }
+
 :root {
   --ink: #17213a;
   --ink-soft: #52607b;

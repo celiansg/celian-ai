@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PDFDocument } from "pdf-lib";
 import { preflightPdf, preflightProfiles } from "../lib/bat/preflight.ts";
+import { calculateBleedOutput } from "../lib/bat/bleed.ts";
+
+test("le calcul de fond perdu conserve le format fini et ajoute deux marges", () => {
+  const output = calculateBleedOutput(841.89, 595.276, 3);
+  assert.equal(Math.round(output.trimWidthPt), 842);
+  assert.equal(Math.round(output.trimHeightPt), 595);
+  assert.equal(Math.round(output.outputWidthPt), 859);
+  assert.equal(Math.round(output.outputHeightPt), 612);
+});
 
 test("le préflight mesure un A4 paysage avec 3 mm de fond perdu", async () => {
   const document = await PDFDocument.create();
