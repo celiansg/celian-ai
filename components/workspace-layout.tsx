@@ -16,7 +16,9 @@ export function WorkspaceLayout({ children }: { children: ReactNode }) {
   // Un workspace connecté reste privé par défaut dès que Firebase est configuré.
   // La valeur "false" permet uniquement de désactiver explicitement la garde
   // pour un environnement local de démonstration.
-  const authRequired = process.env.NEXT_PUBLIC_FIREBASE_AUTH_REQUIRED !== "false";
+  const authRequired =
+    process.env.NODE_ENV === "production" ||
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_REQUIRED !== "false";
   const [authReady, setAuthReady] = useState(!authRequired);
   const [authenticated, setAuthenticated] = useState(!authRequired && !firebaseConfigured);
 
