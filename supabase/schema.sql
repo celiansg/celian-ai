@@ -15,7 +15,7 @@ create table if not exists public.agents (
   description text not null default '',
   instructions text not null default '',
   provider text not null default 'auto' check (provider in ('auto', 'gemini', 'openai')),
-  model text not null default 'gemini-2.0-flash',
+  model text not null default 'gemini-3.5-flash-lite',
   color text not null,
   icon text not null,
   created_at timestamptz not null default now()
