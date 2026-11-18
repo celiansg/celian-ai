@@ -1,8 +1,10 @@
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
   isSignInWithEmailLink,
   onAuthStateChanged,
   getRedirectResult,
+  setPersistence,
   sendSignInLinkToEmail,
   signInWithEmailLink,
   signInWithPopup,
@@ -17,8 +19,22 @@ const emailLinkSettings = {
   handleCodeInApp: true,
 };
 
+let persistencePromise: Promise<void> | null = null;
+
+/**
+ * Keep the Firebase session on the same browser across OAuth redirects.
+ * This is especially important on iOS Safari, where relying on the SDK's
+ * default persistence can make a successful Google callback look anonymous.
+ */
+async function ensureAuthPersistence() {
+  if (!firebaseAuth) throw new Error("Firebase Auth n’est pas configuré.");
+  persistencePromise ??= setPersistence(firebaseAuth, browserLocalPersistence);
+  await persistencePromise;
+}
+
 export async function signInWithGoogle() {
   if (!firebaseAuth) throw new Error("Firebase Auth n’est pas configuré.");
+  await ensureAuthPersistence();
   const provider = new GoogleAuthProvider();
   // Les navigateurs mobiles et les webviews intégrées bloquent fréquemment
   // les popups. La redirection conserve le même parcours utilisateur sans
@@ -38,11 +54,14 @@ export async function signInWithGoogle() {
 
 export async function completeGoogleRedirect() {
   if (!firebaseAuth) return null;
+  await ensureAuthPersistence();
+  await firebaseAuth.authStateReady();
   return getRedirectResult(firebaseAuth);
 }
 
 export async function sendMagicLink(email: string) {
   if (!firebaseAuth) throw new Error("Firebase Auth n’est pas configuré.");
+  await ensureAuthPersistence();
   await sendSignInLinkToEmail(firebaseAuth, email, emailLinkSettings);
   window.localStorage.setItem("celian-ai-email-for-sign-in", email);
 }
