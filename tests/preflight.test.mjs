@@ -48,3 +48,17 @@ test("le préflight signale un fond perdu insuffisant sans le fabriquer", async 
   assert.equal(report.status, "fail");
   assert.equal(report.issues.some((issue) => issue.code === "BLEED_TOO_SMALL"), true);
 });
+
+test("le préflight inventorie les images et ne prétend pas connaître leur DPI effectif", async () => {
+  const document = await PDFDocument.create();
+  const page = document.addPage([600, 400]);
+  const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+  const image = await document.embedPng(png);
+  page.drawImage(image, { x: 0, y: 0, width: 300, height: 300 });
+
+  const report = await preflightPdf(new Uint8Array(await document.save()), preflightProfiles.digitalPrint);
+  assert.equal(report.pages[0].resources.images, 1);
+  assert.equal(report.pages[0].resources.imageAssets[0].width, 1);
+  assert.equal(report.pages[0].resources.imageAssets[0].height, 1);
+  assert.equal(report.issues.some((issue) => issue.code === "IMAGE_DPI_UNVERIFIED"), true);
+});

@@ -1,4 +1,4 @@
-import { PDFArray, PDFDict, PDFDocument, PDFName } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from "pdf-lib";
 
 export type PreflightSeverity = "info" | "warning" | "error" | "unsupported";
 
@@ -24,6 +24,25 @@ export type PreflightProfile = {
   expectedTrim?: { widthMm: number; heightMm: number; toleranceMm: number };
   requiredBleedMm: number;
   maxPages: number;
+  minImageDpi?: number;
+  requireEmbeddedFonts?: boolean;
+  allowedColorSpaces?: string[];
+};
+
+export type PreflightFontAsset = {
+  name: string;
+  subtype: string | null;
+  baseFont: string | null;
+  embedded: boolean | null;
+};
+
+export type PreflightImageAsset = {
+  name: string;
+  width: number | null;
+  height: number | null;
+  colorSpace: string | null;
+  filter: string | null;
+  effectiveDpi: null;
 };
 
 export type PreflightPage = {
@@ -34,7 +53,18 @@ export type PreflightPage = {
   trimBox: PdfBox;
   bleedBox: PdfBox;
   explicitBoxes: { trim: boolean; bleed: boolean; art: boolean };
-  resources: { fonts: number; xObjects: number; graphicStates: number };
+  resources: {
+    fonts: number;
+    embeddedFonts: number;
+    unembeddedFonts: number;
+    unknownFontEmbedding: number;
+    fontAssets: PreflightFontAsset[];
+    images: number;
+    imageAssets: PreflightImageAsset[];
+    colorSpaces: string[];
+    xObjects: number;
+    graphicStates: number;
+  };
   annotations: number;
   hasContent: boolean;
 };
@@ -69,6 +99,15 @@ export const preflightProfiles: Record<string, PreflightProfile> = {
     expectedTrim: { widthMm: 210, heightMm: 297, toleranceMm: 0.5 },
     requiredBleedMm: 3,
     maxPages: 50,
+  },
+  digitalPrint: {
+    id: "digital-print",
+    label: "Impression numérique · ressources à vérifier",
+    requiredBleedMm: 3,
+    maxPages: 50,
+    minImageDpi: 300,
+    requireEmbeddedFonts: true,
+    allowedColorSpaces: ["DeviceCMYK", "DeviceRGB", "DeviceGray", "ICCBased"],
   },
 };
 
@@ -125,6 +164,82 @@ function pushBoxIssues(issues: PreflightIssue[], pageNumber: number, name: strin
       method: "Comparaison géométrique des limites PDF.",
     });
   }
+}
+
+function pdfName(value: unknown) {
+  return value instanceof PDFName ? value.asString().replace(/^\/+/, "") : null;
+}
+
+function pdfNumber(value: unknown) {
+  return value instanceof PDFNumber ? value.asNumber() : null;
+}
+
+function describeColorSpace(dict: PDFDict) {
+  const name = dict.lookupMaybe(PDFName.of("ColorSpace"), PDFName);
+  if (name) return name.asString();
+  const array = dict.lookupMaybe(PDFName.of("ColorSpace"), PDFArray);
+  return array?.lookupMaybe(0, PDFName)?.asString().replace(/^\/+/, "") ?? (array ? "Array" : null);
+}
+
+function describeFilter(dict: PDFDict) {
+  const name = dict.lookupMaybe(PDFName.of("Filter"), PDFName);
+  if (name) return name.asString();
+  const array = dict.lookupMaybe(PDFName.of("Filter"), PDFArray);
+  return array?.lookupMaybe(0, PDFName)?.asString().replace(/^\/+/, "") ?? (array ? "Array" : null);
+}
+
+function fontDescriptor(font: PDFDict) {
+  const direct = font.lookupMaybe(PDFName.of("FontDescriptor"), PDFDict);
+  if (direct) return direct;
+  const descendants = font.lookupMaybe(PDFName.of("DescendantFonts"), PDFArray);
+  for (let index = 0; descendants && index < descendants.size(); index += 1) {
+    const descendant = descendants.lookupMaybe(index, PDFDict);
+    const descriptor = descendant?.lookupMaybe(PDFName.of("FontDescriptor"), PDFDict);
+    if (descriptor) return descriptor;
+  }
+  return undefined;
+}
+
+function inspectFonts(fonts: PDFDict) {
+  const assets: PreflightFontAsset[] = [];
+  for (const key of fonts.keys()) {
+    const font = fonts.lookupMaybe(key, PDFDict);
+    if (!font) {
+      assets.push({ name: key.asString(), subtype: null, baseFont: null, embedded: null });
+      continue;
+    }
+    const descriptor = fontDescriptor(font);
+    const embedded = descriptor
+      ? ["FontFile", "FontFile2", "FontFile3"].some((entry) => Boolean(descriptor.get(PDFName.of(entry))))
+      : null;
+    assets.push({
+      name: key.asString(),
+      subtype: pdfName(font.lookupMaybe(PDFName.of("Subtype"), PDFName)),
+      baseFont: pdfName(font.lookupMaybe(PDFName.of("BaseFont"), PDFName)),
+      embedded,
+    });
+  }
+  return assets;
+}
+
+function inspectImages(xObjects: PDFDict) {
+  const assets: PreflightImageAsset[] = [];
+  const colorSpaces = new Set<string>();
+  for (const key of xObjects.keys()) {
+    const stream = xObjects.lookupMaybe(key, PDFStream);
+    if (!stream || pdfName(stream.dict.lookupMaybe(PDFName.of("Subtype"), PDFName)) !== "Image") continue;
+    const colorSpace = describeColorSpace(stream.dict);
+    if (colorSpace) colorSpaces.add(colorSpace);
+    assets.push({
+      name: key.asString(),
+      width: pdfNumber(stream.dict.lookupMaybe(PDFName.of("Width"), PDFNumber)),
+      height: pdfNumber(stream.dict.lookupMaybe(PDFName.of("Height"), PDFNumber)),
+      colorSpace,
+      filter: describeFilter(stream.dict),
+      effectiveDpi: null,
+    });
+  }
+  return { assets, colorSpaces };
 }
 
 function bleedMargins(trim: PdfBox, bleed: PdfBox) {
@@ -203,10 +318,23 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
     const trimBox = box(page.getTrimBox());
     const bleedBox = box(page.getBleedBox());
     const normalized = page.node.normalizedEntries();
+    const fontAssets = inspectFonts(normalized.Font);
+    const imageInventory = inspectImages(normalized.XObject);
     const pageReport: PreflightPage = {
       page: index + 1, rotation, mediaBox, cropBox, trimBox, bleedBox,
       explicitBoxes: { trim: hasDirectBox(page, "TrimBox"), bleed: hasDirectBox(page, "BleedBox"), art: hasDirectBox(page, "ArtBox") },
-      resources: { fonts: countDict(normalized.Font), xObjects: countDict(normalized.XObject), graphicStates: countDict(normalized.ExtGState) },
+      resources: {
+        fonts: countDict(normalized.Font),
+        embeddedFonts: fontAssets.filter((font) => font.embedded === true).length,
+        unembeddedFonts: fontAssets.filter((font) => font.embedded === false).length,
+        unknownFontEmbedding: fontAssets.filter((font) => font.embedded === null).length,
+        fontAssets,
+        images: imageInventory.assets.length,
+        imageAssets: imageInventory.assets,
+        colorSpaces: [...imageInventory.colorSpaces],
+        xObjects: countDict(normalized.XObject),
+        graphicStates: countDict(normalized.ExtGState),
+      },
       annotations: countArray(page.node.Annots()), hasContent: Boolean(page.node.Contents()),
     };
     pages.push(pageReport);
@@ -220,11 +348,28 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
     if (![0, 90, 180, 270].includes(rotation)) issues.push({ code: "ROTATION_UNSUPPORTED", severity: "error", page: index + 1, message: "La rotation de page n’est pas supportée pour ce contrôle.", proof: `rotation=${rotation}°`, method: "Contrôle des rotations PDF autorisées par le profil." });
     if (!pageReport.hasContent) issues.push({ code: "PAGE_WITHOUT_CONTENT", severity: "warning", page: index + 1, message: "La page ne contient pas de flux graphique détectable.", proof: "Contents absent", method: "Lecture du flux Contents de la page." });
     if (pageReport.annotations > 0) issues.push({ code: "ANNOTATIONS_PRESENT", severity: "warning", page: index + 1, message: `${pageReport.annotations} annotation(s) présente(s) : vérifiez qu’elles ne sont pas destinées à l’impression.`, proof: `annotations=${pageReport.annotations}`, method: "Comptage de la collection Annots; le contenu des annotations n’est pas interprété." });
+    if (profile.requireEmbeddedFonts && pageReport.resources.unembeddedFonts > 0) {
+      issues.push({ code: "FONT_NOT_EMBEDDED", severity: "error", page: index + 1, message: `${pageReport.resources.unembeddedFonts} police(s) ne semblent pas incorporée(s).`, proof: JSON.stringify(pageReport.resources.fontAssets.filter((font) => font.embedded === false)), method: "Lecture des FontDescriptor et des entrées FontFile, FontFile2 ou FontFile3; aucune police n’est modifiée." });
+    }
+    if (profile.requireEmbeddedFonts && pageReport.resources.unknownFontEmbedding > 0) {
+      issues.push({ code: "FONT_EMBEDDING_UNVERIFIED", severity: "unsupported", page: index + 1, message: `${pageReport.resources.unknownFontEmbedding} police(s) ne peuvent pas être classées comme incorporée(s) avec ce moteur.`, proof: JSON.stringify(pageReport.resources.fontAssets.filter((font) => font.embedded === null)), method: "Le PDF expose une police sans descripteur exploitable; le moteur ne déduit pas son incorporation." });
+    }
+    if (profile.minImageDpi && pageReport.resources.images > 0) {
+      issues.push({ code: "IMAGE_DPI_UNVERIFIED", severity: "unsupported", page: index + 1, message: `${pageReport.resources.images} image(s) détectée(s), mais leur DPI effectif n’est pas encore calculé.`, proof: JSON.stringify(pageReport.resources.imageAssets), method: `Les pixels et les espaces colorimétriques sont inventoriés; le calcul du DPI effectif à partir des matrices de placement est requis pour comparer à ${profile.minImageDpi} DPI.` });
+    }
+    if (profile.allowedColorSpaces && pageReport.resources.colorSpaces.length > 0) {
+      const disallowed = pageReport.resources.colorSpaces.filter((colorSpace) => !profile.allowedColorSpaces?.includes(colorSpace));
+      if (disallowed.length > 0) {
+        issues.push({ code: "COLOR_SPACE_REVIEW", severity: "warning", page: index + 1, message: `Espace(s) colorimétrique(s) à vérifier : ${disallowed.join(", ")}.`, proof: JSON.stringify({ detected: pageReport.resources.colorSpaces, allowed: profile.allowedColorSpaces }), method: "Contrôle des espaces déclarés par les ressources image; les couleurs réellement utilisées dans tous les opérateurs PDF restent à analyser." });
+      } else {
+        issues.push({ code: "COLOR_SPACE_RESOURCES_OK", severity: "info", page: index + 1, message: "Les espaces colorimétriques déclarés des images correspondent au profil.", proof: JSON.stringify(pageReport.resources.colorSpaces), method: "Lecture des ColorSpace des XObjects image; ce contrôle ne certifie pas une conversion ICC ni un profil de sortie." });
+      }
+    }
   }
 
   const actualFormFields = (() => { try { return document.getForm().getFields().length; } catch { return 0; } })();
   if (actualFormFields > 0) issues.push({ code: "ACROFORM_PRESENT", severity: "warning", message: `${actualFormFields} champ(s) de formulaire détecté(s).`, proof: `fields=${actualFormFields}`, method: "Lecture AcroForm via pdf-lib; les scripts et actions ne sont pas exécutés." });
-  issues.push({ code: "PDF_STANDARD_UNVERIFIED", severity: "unsupported", message: "La conformité PDF/X, les profils ICC, les polices incorporées et les DPI image ne sont pas certifiés par ce contrôle.", proof: "Le moteur ne remplace pas un préflight callas/Adobe/Ghent.", method: "Limite explicite : les ressources sont comptées, mais leur sémantique colorimétrique et leur résolution ne sont pas déduites." });
+  issues.push({ code: "PDF_STANDARD_UNVERIFIED", severity: "unsupported", message: "La conformité PDF/X, les profils ICC, la surimpression et le DPI effectif des images ne sont pas certifiés par ce contrôle.", proof: "Le moteur ne remplace pas un préflight callas/Adobe/Ghent.", method: "Limite explicite : les boxes et les ressources sont inventoriées, mais aucune conformité industrielle n’est déclarée." });
 
   if (profile.expectedTrim) {
     const expectedWidth = mmToPoints(profile.expectedTrim.widthMm);
