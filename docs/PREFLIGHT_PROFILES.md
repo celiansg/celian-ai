@@ -14,7 +14,11 @@ Ces profils sont des propositions de contrôle et ne déclarent jamais une confo
 
 - `generic` : boxes, rotations, annotations, structure de page et inventaire de ressources.
 - `a4-landscape` / `a4-portrait` : ajout du contrôle de format fini et de 3 mm de fond perdu.
-- `digital-print` : 3 mm de fond perdu, contrôle des polices qui ne semblent pas incorporées, inventaire des images et des espaces colorimétriques déclarés. Le DPI effectif reste explicitement non certifié tant que la matrice de placement de chaque image n’est pas calculée.
+- `digital-print` : 3 mm de fond perdu, contrôle des polices qui ne semblent pas incorporées, inventaire des images et des espaces colorimétriques déclarés, ainsi que signalement des états de surimpression et de transparence à vérifier au RIP. Le DPI effectif reste explicitement non certifié tant que la matrice de placement de chaque image n’est pas calculée.
+
+## Sorties
+
+Après un contrôle, l’interface propose un rapport JSON (données structurées pour archivage) et un rapport PDF lisible pour transmission. Le rapport PDF rappelle systématiquement les limites : il ne certifie ni PDF/X, ni profil ICC, ni séparation ton direct, ni comportement d’un RIP.
 
 Les images sont actuellement inventoriées avec leurs dimensions, filtre et espace colorimétrique déclaré. Cela ne constitue pas encore un contrôle de DPI effectif : une image de 1200 px peut être placée à des tailles différentes selon le contenu PDF.
 

@@ -20,11 +20,15 @@ L’atelier `/mail` produit un brouillon éditable à partir de modèles locaux 
 
 ## Phase 4 — Préflight PDF
 
-Ajouter profils, boxes, DPI effectifs, polices, couleurs, rapports JSON/PDF et limites explicites.
+État : première tranche fonctionnelle livrée. Les profils contrôlent les boxes, rotations, annotations, pages, polices, images et espaces colorimétriques déclarés. Les rapports JSON et PDF sont téléchargeables. Les contrôles de surimpression et de transparence sont inventoriés avec avertissement RIP. Le DPI effectif, PDF/X et les profils ICC restent explicitement non certifiés.
 
 ## Phase 5 — Fonds perdus
 
-Commencer par PDF raster simple, afficher la méthode et l’impact de rasterisation, puis étendre prudemment.
+État : fond perdu raster disponible avec valeur libre en millimètres, répétition du dernier pixel, étirement du bord, miroir et zone blanche. La sortie conserve TrimBox/BleedBox et affiche l’impact de la rasterisation. Reste : contrôle visuel automatisé et traitement avancé des profils colorimétriques.
+
+## Phase 5b — Imposition de contrôle
+
+État : imposition vectorielle simple disponible sur `/bat` en N-up ou répétition d’une page, avec feuilles A4/A3, grille, marges et blancs entre poses. Les repères, compensations machine, cahier, recto-verso et retournement restent à intégrer séparément.
 
 ## Phase 6 — Découpe
 

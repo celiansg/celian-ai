@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSearch, Info, XCircle } from "lucide-react";
 import { preflightPdf, preflightProfiles, preflightStatusLabel, type PreflightProfile, type PreflightReport } from "@/lib/bat/preflight";
+import { generatePreflightReportPdf } from "@/lib/bat/report";
 import { formatFileSize } from "@/lib/local-files/indexed-db";
 
 function issueIcon(severity: string) {
@@ -48,6 +49,17 @@ export function PreflightPanel() {
     URL.revokeObjectURL(url);
   }
 
+  async function downloadPdfReport() {
+    if (!report) return;
+    const bytes = await generatePreflightReportPdf(report, fileName);
+    const url = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${fileName.replace(/\.pdf$/i, "") || "rapport-preflight"}.preflight.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="preflight-panel" aria-labelledby="preflight-title">
       <div className="preflight-head">
@@ -65,8 +77,8 @@ export function PreflightPanel() {
           <div className={statusClass(report.status)}><span>{report.status === "pass" ? "✓" : report.status === "warning" ? "!" : "×"}</span><div><strong>{preflightStatusLabel(report.status)}</strong><small>{fileName} · {formatFileSize(report.file.bytes)} · {report.file.pages} page(s)</small></div></div>
           <div className="preflight-counters"><span className="info">{report.summary.info} infos</span><span className="warning">{report.summary.warning} avertissements</span><span className="error">{report.summary.error} erreurs</span><span className="unsupported">{report.summary.unsupported} limites</span></div>
           <div className="preflight-counters"><span className="info">{report.pages.reduce((total, page) => total + page.resources.images, 0)} images</span><span className="info">{report.pages.reduce((total, page) => total + page.resources.embeddedFonts, 0)} polices incorporées</span><span className="warning">{report.pages.reduce((total, page) => total + page.resources.unembeddedFonts, 0)} polices non incorporées</span></div>
-          <div className="preflight-actions"><button type="button" className="secondary-button" onClick={downloadReport}><Download size={15} aria-hidden="true" /> Télécharger le rapport JSON</button></div>
-          <div className="preflight-pages"><strong>Mesures par page</strong>{report.pages.map((page) => <div className="preflight-page-row" key={page.page}><span>Page {page.page}</span><span>Trim {Math.round(page.trimBox.width / (72 / 25.4))}×{Math.round(page.trimBox.height / (72 / 25.4))} mm</span><span>Rotation {page.rotation}°</span><span>{page.explicitBoxes.bleed ? "BleedBox présente" : "BleedBox absente"}</span><span>{page.resources.images} image(s){page.resources.colorSpaces.length > 0 ? ` · ${page.resources.colorSpaces.join(", ")}` : ""}</span></div>)}</div>
+          <div className="preflight-actions"><button type="button" className="secondary-button" onClick={downloadReport}><Download size={15} aria-hidden="true" /> Rapport JSON</button><button type="button" className="primary-button" onClick={() => void downloadPdfReport()}><Download size={15} aria-hidden="true" /> Rapport PDF</button></div>
+          <div className="preflight-pages"><strong>Mesures par page</strong>{report.pages.map((page) => <div className="preflight-page-row" key={page.page}><span>Page {page.page}</span><span>Trim {Math.round(page.trimBox.width / (72 / 25.4))}×{Math.round(page.trimBox.height / (72 / 25.4))} mm</span><span>Rotation {page.rotation}°</span><span>{page.explicitBoxes.bleed ? "BleedBox présente" : "BleedBox absente"}</span><span>{page.resources.images} image(s){page.resources.colorSpaces.length > 0 ? ` · ${page.resources.colorSpaces.join(", ")}` : ""} · surimpression ${page.resources.overprintStates} · transparence ${page.resources.transparencyStates}</span></div>)}</div>
           <ul className="preflight-issues">{report.issues.map((issue, index) => <li className={`preflight-issue ${issue.severity}`} key={`${issue.code}-${issue.page ?? "doc"}-${index}`}>{issueIcon(issue.severity)}<div><strong>{issue.page ? `Page ${issue.page} · ` : ""}{issue.message}</strong><small>{issue.code} · {issue.proof}</small></div></li>)}</ul>
         </div>
       )}

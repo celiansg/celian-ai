@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 
-export type BleedMethod = "edge_repeat" | "mirror" | "blank";
+export type BleedMethod = "edge_repeat" | "edge_stretch" | "mirror" | "blank";
 export type BleedOptions = { bleedMm: number; dpi: 150 | 300; method: BleedMethod; pages: "all" | number };
 export type BleedResult = { bytes: Uint8Array; pageCount: number; bleedMm: number; dpi: number; method: BleedMethod; rasterized: true; warning: string };
 
@@ -28,6 +28,18 @@ function drawEdgeRepeat(context: CanvasRenderingContext2D, source: HTMLCanvasEle
   context.drawImage(source, 0, height - 1, width, 1, bleedX, bleedY + height, width, bleedY);
   context.drawImage(source, 0, 0, 1, height, 0, bleedY, bleedX, height);
   context.drawImage(source, width - 1, 0, 1, height, bleedX + width, bleedY, bleedX, height);
+}
+
+function drawEdgeStretch(context: CanvasRenderingContext2D, source: HTMLCanvasElement, bleedX: number, bleedY: number) {
+  const { width, height } = source;
+  context.drawImage(source, 0, 0, width, 1, bleedX, 0, width, bleedY);
+  context.drawImage(source, 0, height - 1, width, 1, bleedX, bleedY + height, width, bleedY);
+  context.drawImage(source, 0, 0, 1, height, 0, bleedY, bleedX, height);
+  context.drawImage(source, width - 1, 0, 1, height, bleedX + width, bleedY, bleedX, height);
+  context.drawImage(source, 0, 0, 1, 1, 0, 0, bleedX, bleedY);
+  context.drawImage(source, width - 1, 0, 1, 1, bleedX + width, 0, bleedX, bleedY);
+  context.drawImage(source, 0, height - 1, 1, 1, 0, bleedY + height, bleedX, bleedY);
+  context.drawImage(source, width - 1, height - 1, 1, 1, bleedX + width, bleedY + height, bleedX, bleedY);
 }
 
 function drawMirror(context: CanvasRenderingContext2D, source: HTMLCanvasElement, bleedX: number, bleedY: number) {
@@ -99,6 +111,7 @@ export async function addBleedToPdf(file: File, options: BleedOptions): Promise<
       if (!outputContext) throw new Error("Le navigateur ne peut pas créer la page avec fond perdu.");
       outputContext.fillStyle = "#ffffff"; outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
       if (options.method === "edge_repeat") drawEdgeRepeat(outputContext, sourceCanvas, bleedPx, bleedPx);
+      if (options.method === "edge_stretch") drawEdgeStretch(outputContext, sourceCanvas, bleedPx, bleedPx);
       if (options.method === "mirror") drawMirror(outputContext, sourceCanvas, bleedPx, bleedPx);
       outputContext.drawImage(sourceCanvas, bleedPx, bleedPx);
 

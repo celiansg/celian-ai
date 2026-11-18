@@ -3,6 +3,8 @@ import test from "node:test";
 import { PDFDocument } from "pdf-lib";
 import { preflightPdf, preflightProfiles } from "../lib/bat/preflight.ts";
 import { calculateBleedOutput } from "../lib/bat/bleed.ts";
+import { generatePreflightReportPdf } from "../lib/bat/report.ts";
+import { imposePdf } from "../lib/bat/imposition.ts";
 
 test("le calcul de fond perdu conserve le format fini et ajoute deux marges", () => {
   const output = calculateBleedOutput(841.89, 595.276, 3);
@@ -61,4 +63,26 @@ test("le préflight inventorie les images et ne prétend pas connaître leur DPI
   assert.equal(report.pages[0].resources.imageAssets[0].width, 1);
   assert.equal(report.pages[0].resources.imageAssets[0].height, 1);
   assert.equal(report.issues.some((issue) => issue.code === "IMAGE_DPI_UNVERIFIED"), true);
+});
+
+test("le rapport de préflight produit un PDF réouvrable", async () => {
+  const document = await PDFDocument.create();
+  document.addPage([595.28, 841.89]);
+  const report = await preflightPdf(new Uint8Array(await document.save()), preflightProfiles.generic);
+  const bytes = await generatePreflightReportPdf(report, "source.pdf");
+  const reopened = await PDFDocument.load(bytes);
+  assert.ok(reopened.getPageCount() >= 1);
+  assert.equal(reopened.getTitle(), "Rapport de préflight · source.pdf");
+});
+
+test("l’imposition N-up simple produit une feuille vectorielle", async () => {
+  const document = await PDFDocument.create();
+  const page = document.addPage([200, 300]);
+  page.drawText("Agents", { x: 20, y: 250 });
+  const result = await imposePdf(new Uint8Array(await document.save()), {
+    sheetWidthMm: 210, sheetHeightMm: 297, columns: 2, rows: 2, gutterMm: 5, marginMm: 5, mode: "step_repeat", sourcePage: 1,
+  });
+  const reopened = await PDFDocument.load(result.bytes);
+  assert.equal(reopened.getPageCount(), 1);
+  assert.equal(result.placedPages, 4);
 });

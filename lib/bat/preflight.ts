@@ -1,4 +1,4 @@
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from "pdf-lib";
+import { PDFArray, PDFBool, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from "pdf-lib";
 
 export type PreflightSeverity = "info" | "warning" | "error" | "unsupported";
 
@@ -64,6 +64,8 @@ export type PreflightPage = {
     colorSpaces: string[];
     xObjects: number;
     graphicStates: number;
+    overprintStates: number;
+    transparencyStates: number;
   };
   annotations: number;
   hasContent: boolean;
@@ -242,6 +244,23 @@ function inspectImages(xObjects: PDFDict) {
   return { assets, colorSpaces };
 }
 
+function inspectGraphicStates(states: PDFDict) {
+  let overprintStates = 0;
+  let transparencyStates = 0;
+  for (const key of states.keys()) {
+    const state = states.lookupMaybe(key, PDFDict);
+    if (!state) continue;
+    const overprint = ["OP", "op"].some((name) => {
+      const value = state.get(PDFName.of(name));
+      return value instanceof PDFBool && value.asBoolean();
+    });
+    const transparency = ["BM", "ca", "CA", "SMask"].some((name) => Boolean(state.get(PDFName.of(name))));
+    if (overprint) overprintStates += 1;
+    if (transparency) transparencyStates += 1;
+  }
+  return { overprintStates, transparencyStates };
+}
+
 function bleedMargins(trim: PdfBox, bleed: PdfBox) {
   return {
     left: Math.max(0, trim.x - bleed.x),
@@ -320,6 +339,7 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
     const normalized = page.node.normalizedEntries();
     const fontAssets = inspectFonts(normalized.Font);
     const imageInventory = inspectImages(normalized.XObject);
+    const graphicStateInventory = inspectGraphicStates(normalized.ExtGState);
     const pageReport: PreflightPage = {
       page: index + 1, rotation, mediaBox, cropBox, trimBox, bleedBox,
       explicitBoxes: { trim: hasDirectBox(page, "TrimBox"), bleed: hasDirectBox(page, "BleedBox"), art: hasDirectBox(page, "ArtBox") },
@@ -334,6 +354,8 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
         colorSpaces: [...imageInventory.colorSpaces],
         xObjects: countDict(normalized.XObject),
         graphicStates: countDict(normalized.ExtGState),
+        overprintStates: graphicStateInventory.overprintStates,
+        transparencyStates: graphicStateInventory.transparencyStates,
       },
       annotations: countArray(page.node.Annots()), hasContent: Boolean(page.node.Contents()),
     };
@@ -348,6 +370,8 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
     if (![0, 90, 180, 270].includes(rotation)) issues.push({ code: "ROTATION_UNSUPPORTED", severity: "error", page: index + 1, message: "La rotation de page n’est pas supportée pour ce contrôle.", proof: `rotation=${rotation}°`, method: "Contrôle des rotations PDF autorisées par le profil." });
     if (!pageReport.hasContent) issues.push({ code: "PAGE_WITHOUT_CONTENT", severity: "warning", page: index + 1, message: "La page ne contient pas de flux graphique détectable.", proof: "Contents absent", method: "Lecture du flux Contents de la page." });
     if (pageReport.annotations > 0) issues.push({ code: "ANNOTATIONS_PRESENT", severity: "warning", page: index + 1, message: `${pageReport.annotations} annotation(s) présente(s) : vérifiez qu’elles ne sont pas destinées à l’impression.`, proof: `annotations=${pageReport.annotations}`, method: "Comptage de la collection Annots; le contenu des annotations n’est pas interprété." });
+    if (pageReport.resources.overprintStates > 0) issues.push({ code: "OVERPRINT_PRESENT", severity: "warning", page: index + 1, message: `${pageReport.resources.overprintStates} état(s) de surimpression détecté(s) : vérifiez le résultat au RIP.`, proof: `overprintStates=${pageReport.resources.overprintStates}`, method: "Lecture des états graphiques OP/op; ce contrôle ne simule pas la séparation ni le comportement du RIP." });
+    if (pageReport.resources.transparencyStates > 0) issues.push({ code: "TRANSPARENCY_PRESENT", severity: "warning", page: index + 1, message: `${pageReport.resources.transparencyStates} état(s) de transparence détecté(s) : vérifiez l’aplatissement au RIP.`, proof: `transparencyStates=${pageReport.resources.transparencyStates}`, method: "Lecture des états graphiques BM/ca/CA/SMask; ce contrôle ne garantit pas un aplatissement de production." });
     if (profile.requireEmbeddedFonts && pageReport.resources.unembeddedFonts > 0) {
       issues.push({ code: "FONT_NOT_EMBEDDED", severity: "error", page: index + 1, message: `${pageReport.resources.unembeddedFonts} police(s) ne semblent pas incorporée(s).`, proof: JSON.stringify(pageReport.resources.fontAssets.filter((font) => font.embedded === false)), method: "Lecture des FontDescriptor et des entrées FontFile, FontFile2 ou FontFile3; aucune police n’est modifiée." });
     }
