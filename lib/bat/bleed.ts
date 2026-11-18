@@ -5,8 +5,6 @@ export type BleedOptions = { bleedMm: number; dpi: 150 | 300; method: BleedMetho
 export type BleedResult = { bytes: Uint8Array; pageCount: number; bleedMm: number; dpi: number; method: BleedMethod; rasterized: true; warning: string };
 
 const maxInputBytes = 15 * 1024 * 1024;
-const maxPages = 10;
-const maxPdfPages = 50;
 const maxBleedMm = 20;
 const pointsPerMm = 72 / 25.4;
 
@@ -75,7 +73,6 @@ export async function addBleedToPdf(file: File, options: BleedOptions): Promise<
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   const source = await pdfjs.getDocument({ data: bytes }).promise;
   const sourcePages = options.pages === "all" ? Array.from({ length: source.numPages }, (_, index) => index + 1) : [options.pages];
-  if (sourcePages.length > maxPages || source.numPages > maxPdfPages) { await source.destroy(); throw new Error(`Le fichier doit contenir au maximum ${maxPages} pages pour une rasterisation sûre.`); }
   if (sourcePages.some((page) => page > source.numPages)) { await source.destroy(); throw new Error("La page sélectionnée n’existe pas dans le PDF."); }
 
   const output = await PDFDocument.create();
