@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { RightRail } from "./right-rail";
-import { firebaseConfigured } from "@/lib/firebase/client";
+import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 import { subscribeToAuthState } from "@/lib/firebase/auth";
 
 export function WorkspaceLayout({ children }: { children: ReactNode }) {
@@ -27,10 +27,26 @@ export function WorkspaceLayout({ children }: { children: ReactNode }) {
       setAuthReady(true);
       return;
     }
-    return subscribeToAuthState((user) => {
-      setAuthenticated(Boolean(user));
-      setAuthReady(true);
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    // Wait for Firebase to restore browser persistence before deciding that
+    // a freshly completed OAuth redirect is anonymous.
+    void firebaseAuth?.authStateReady().then(() => {
+      if (!active) return;
+      unsubscribe = subscribeToAuthState((user) => {
+        if (!active) return;
+        setAuthenticated(Boolean(user));
+        setAuthReady(true);
+      });
+    }).catch(() => {
+      if (active) setAuthReady(true);
     });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [authRequired]);
 
   useEffect(() => {
