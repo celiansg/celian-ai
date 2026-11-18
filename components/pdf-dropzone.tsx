@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { FileUp } from "lucide-react";
 
 type PdfDropzoneProps = {
@@ -30,12 +30,7 @@ export function PdfDropzone({ onFile, label, hint, disabled = false, maxBytes = 
     if (!disabled) accept(event.dataTransfer.files[0]);
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (disabled || (event.key !== "Enter" && event.key !== " ")) return;
-    event.preventDefault(); inputRef.current?.click();
-  }
-
-  return <div className={`pdf-dropzone${dragging ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`} role="button" tabIndex={disabled ? -1 : 0} aria-label={label} onClick={() => { if (!disabled) inputRef.current?.click(); }} onKeyDown={onKeyDown} onDragEnter={(event) => { event.preventDefault(); if (!disabled) setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+  return <div className={`pdf-dropzone${dragging ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`} role="group" aria-label={label} onClick={() => { if (!disabled) inputRef.current?.click(); }} onDragEnter={(event) => { event.preventDefault(); if (!disabled) setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
     <span className="pdf-dropzone-icon"><FileUp size={18} aria-hidden="true" /></span>
     <span className="pdf-dropzone-copy"><strong>{label}</strong><span>{dragging ? "Déposez le PDF ici" : "Glissez-déposez un PDF ou parcourez votre appareil"}</span><small>{hint}</small></span>
     <button type="button" className="secondary-button pdf-dropzone-button" disabled={disabled} onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }}>Parcourir</button>
