@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 
-export type BleedMethod = "edge_repeat" | "blank";
+export type BleedMethod = "edge_repeat" | "mirror" | "blank";
 export type BleedOptions = { bleedMm: number; dpi: 150 | 300; method: BleedMethod; pages: "all" | number };
 export type BleedResult = { bytes: Uint8Array; pageCount: number; bleedMm: number; dpi: number; method: BleedMethod; rasterized: true; warning: string };
 
@@ -30,6 +30,28 @@ function drawEdgeRepeat(context: CanvasRenderingContext2D, source: HTMLCanvasEle
   context.drawImage(source, 0, height - 1, width, 1, bleedX, bleedY + height, width, bleedY);
   context.drawImage(source, 0, 0, 1, height, 0, bleedY, bleedX, height);
   context.drawImage(source, width - 1, 0, 1, height, bleedX + width, bleedY, bleedX, height);
+}
+
+function drawMirror(context: CanvasRenderingContext2D, source: HTMLCanvasElement, bleedX: number, bleedY: number) {
+  const width = source.width;
+  const height = source.height;
+  const mirror = (sourceX: number, sourceY: number, boundaryX: number, boundaryY: number, targetX: number, targetY: number, targetWidth: number, targetHeight: number, flipX: boolean, flipY: boolean) => {
+    context.save();
+    context.translate(boundaryX, boundaryY);
+    context.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+    context.drawImage(source, sourceX, sourceY, targetWidth, targetHeight, targetX, targetY, targetWidth, targetHeight);
+    context.restore();
+  };
+  // Corners first: they are reflected on both axes so no blank pixel remains at a join.
+  mirror(0, 0, bleedX, bleedY, 0, 0, bleedX, bleedY, true, true);
+  mirror(width - bleedX, 0, bleedX + width, bleedY, -bleedX, 0, bleedX, bleedY, true, true);
+  mirror(0, height - bleedY, bleedX, bleedY + height, 0, -bleedY, bleedX, bleedY, true, true);
+  mirror(width - bleedX, height - bleedY, bleedX + width, bleedY + height, -bleedX, -bleedY, bleedX, bleedY, true, true);
+  // The four edges are reflected around the Trim boundary.
+  mirror(0, 0, bleedX, bleedY, bleedX, 0, width, bleedY, false, true);
+  mirror(0, height - bleedY, bleedX, bleedY + height, bleedX, -bleedY, width, bleedY, false, true);
+  mirror(0, 0, bleedX, bleedY, 0, bleedY, bleedX, height, true, false);
+  mirror(width - bleedX, 0, bleedX + width, bleedY, -bleedX, bleedY, bleedX, height, true, false);
 }
 
 function canvasToPng(canvas: HTMLCanvasElement) {
@@ -80,6 +102,7 @@ export async function addBleedToPdf(file: File, options: BleedOptions): Promise<
       if (!outputContext) throw new Error("Le navigateur ne peut pas créer la page avec fond perdu.");
       outputContext.fillStyle = "#ffffff"; outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
       if (options.method === "edge_repeat") drawEdgeRepeat(outputContext, sourceCanvas, bleedPx, bleedPx);
+      if (options.method === "mirror") drawMirror(outputContext, sourceCanvas, bleedPx, bleedPx);
       outputContext.drawImage(sourceCanvas, bleedPx, bleedPx);
 
       const image = await output.embedPng(await canvasToPng(outputCanvas));
