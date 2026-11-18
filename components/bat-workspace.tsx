@@ -153,7 +153,7 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
   }
 
   return (
-    <div className="standalone-page">
+    <div>
       <header className="standalone-head">
         <div>
           <div className="eyebrow">Atelier prépresse</div>
