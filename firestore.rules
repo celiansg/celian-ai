@@ -47,9 +47,28 @@ service cloud.firestore {
     }
 
     function validMessage() {
-      return request.resource.data.keys().hasOnly(['userId', 'conversationId', 'role', 'content', 'metadata', 'createdAt'])
+      return request.resource.data.keys().hasOnly(['userId', 'conversationId', 'role', 'content', 'metadata', 'sequence', 'createdAt'])
         && validText(request.resource.data.content, 1, 20000)
-        && request.resource.data.role in ['user', 'assistant', 'system', 'tool'];
+        && request.resource.data.role in ['user', 'assistant', 'system', 'tool']
+        && request.resource.data.metadata is map
+        && request.resource.data.metadata.keys().hasAll(['messageId', 'partsJson'])
+        && request.resource.data.metadata.keys().hasOnly(['messageId', 'partsJson'])
+        && validText(request.resource.data.metadata.messageId, 1, 120)
+        && validText(request.resource.data.metadata.partsJson, 2, 50000)
+        && request.resource.data.sequence is int
+        && request.resource.data.sequence >= 0
+        && request.resource.data.sequence <= 120;
+    }
+
+    function validConversation() {
+      return request.resource.data.keys().hasOnly(['userId', 'projectId', 'agentId', 'title', 'createdAt', 'updatedAt'])
+        && validText(request.resource.data.agentId, 1, 40)
+        && validText(request.resource.data.title, 1, 200)
+        && (!('projectId' in request.resource.data) || validText(request.resource.data.projectId, 1, 120));
+    }
+
+    function ownsConversation(conversationId) {
+      return signedIn() && getAfter(/databases/$(database)/documents/conversations/$(conversationId)).data.userId == request.auth.uid;
     }
 
     match /agents/{agentId} {
@@ -79,15 +98,15 @@ service cloud.firestore {
 
     match /conversations/{conversationId} {
       allow read: if ownsExisting();
-      allow create: if ownsIncoming() && request.resource.data.keys().hasOnly(['userId', 'projectId', 'agentId', 'title', 'createdAt', 'updatedAt']) && validText(request.resource.data.title, 1, 200);
-      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership();
+      allow create: if ownsIncoming() && validConversation() && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership() && validConversation() && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if ownsExisting();
     }
 
     match /messages/{messageId} {
       allow read: if ownsExisting();
-      allow create: if ownsIncoming() && validMessage();
-      allow update: if false;
+      allow create: if ownsIncoming() && ownsConversation(request.resource.data.conversationId) && validMessage() && request.resource.data.createdAt == request.time;
+      allow update: if ownsExisting() && ownsIncoming() && keepsOwnership() && ownsConversation(request.resource.data.conversationId) && validMessage() && request.resource.data.conversationId == resource.data.conversationId && request.resource.data.sequence == resource.data.sequence && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if ownsExisting();
     }
 

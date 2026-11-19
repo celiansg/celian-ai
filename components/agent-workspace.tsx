@@ -33,6 +33,7 @@ import { addBleedToPdf, type BleedMethod } from "@/lib/bat/bleed";
 import { addCutlineToPdf, type CutlineMode } from "@/lib/bat/cutline";
 import { imposePdf } from "@/lib/bat/imposition";
 import { getLocalConversation, saveLocalConversation } from "@/lib/local-workspace/indexed-db";
+import { getCloudConversation, saveCloudConversation } from "@/lib/firebase/conversations";
 
 type StagedFile = {
   id: string;
@@ -219,7 +220,8 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
     let active = true;
     void (async () => {
       try {
-        const stored = await getLocalConversation(agent.id);
+        await firebaseAuth?.authStateReady();
+        const stored = await getCloudConversation(agent.id) ?? await getLocalConversation(agent.id);
         if (active && stored?.messages && Array.isArray(stored.messages)) setMessages(stored.messages as UIMessage[]);
         if (active && !stored) {
           const fallback = window.localStorage.getItem(conversationStorageKey);
@@ -249,8 +251,12 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
 
   useEffect(() => {
     if (!historyHydrated) return;
-    void saveLocalConversation({ agentId: agent.id, title: `Conversation avec ${agent.handle}`, messages }).catch(() => {
+    const input = { agentId: agent.id, title: `Conversation avec ${agent.handle}`, messages };
+    void saveLocalConversation(input).catch(() => {
       try { window.localStorage.setItem(conversationStorageKey, JSON.stringify(messages)); } catch { /* Le chat reste utilisable si le quota local est atteint. */ }
+    });
+    void saveCloudConversation(input).catch(() => {
+      // Le cloud est opportuniste : le mode local reste la source de continuité hors ligne.
     });
   }, [agent.handle, agent.id, conversationStorageKey, historyHydrated, messages]);
 
