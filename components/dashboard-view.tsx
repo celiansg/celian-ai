@@ -12,6 +12,8 @@ import { PendingActionCard } from "./pending-action-card";
 import { GradientText } from "./ui/gradient-text";
 import { createWorkspaceActivity, listWorkspaceProjects, listWorkspaceTasks } from "@/lib/workspace/repository";
 import type { LocalProject, LocalTask } from "@/lib/local-workspace/types";
+import { listLocalAgentRuns, saveLocalAgentRun } from "@/lib/local-workspace/indexed-db";
+import type { LocalAgentRun } from "@/lib/local-workspace/types";
 import { getAiAuthorizationHeaders } from "@/lib/firebase/authorization";
 
 function formatAgent(agentId: AgentId) {
@@ -26,13 +28,15 @@ export function DashboardView() {
   const [lastGoal, setLastGoal] = useState("");
   const [projects, setProjects] = useState<LocalProject[]>([]);
   const [tasks, setTasks] = useState<LocalTask[]>([]);
+  const [recentRuns, setRecentRuns] = useState<LocalAgentRun[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
 
   async function refreshWorkspace() {
     try {
-      const [nextProjects, nextTasks] = await Promise.all([listWorkspaceProjects(), listWorkspaceTasks()]);
+      const [nextProjects, nextTasks, nextRuns] = await Promise.all([listWorkspaceProjects(), listWorkspaceTasks(), listLocalAgentRuns()]);
       setProjects(nextProjects);
       setTasks(nextTasks);
+      setRecentRuns(nextRuns);
     } finally {
       setWorkspaceLoading(false);
     }
@@ -61,6 +65,12 @@ export function DashboardView() {
       setRunAnswer(result.answer ?? "");
       setPendingAction(result.pendingAction);
       setRunStatus("completed");
+      try {
+        const savedRun = await saveLocalAgentRun({ goal: prompt, agentId: "celian", status: result.status, answer: result.answer ?? "", events: result.events ?? [], pendingAction: result.pendingAction });
+        setRecentRuns((current) => [savedRun, ...current]);
+      } catch {
+        // Une indisponibilité du stockage local ne transforme pas un run IA réussi en erreur.
+      }
       await createWorkspaceActivity({ description: `@Célian a traité : ${prompt}`, agentId: "celian" });
       await refreshWorkspace();
     } catch {
@@ -88,6 +98,8 @@ export function DashboardView() {
 
     <SectionHeading icon="bot" title="Mes agents" action="Voir tous les agents" href="/agents" />
     <section className="agents-grid">{agents.map((agent) => <Link href={`/agents/${agent.id}`} key={agent.id} className="agent-card" aria-label={`Ouvrir ${agent.handle}`}><AgentAvatar agentId={agent.id} size="md" /><div className="agent-card-name">{agent.handle} <span className="online-dot" /></div><div className="agent-card-role">{agent.role}</div><p>{agent.description}</p></Link>)}</section>
+
+    {recentRuns.length > 0 && <section className="panel run-history-panel"><SectionHeading icon="activity" title="Dernières exécutions" action="Historique local" /><div className="run-history-list">{recentRuns.slice(0, 5).map((run) => <article className="run-history-row" key={run.id}><span className={`run-history-status ${run.status}`} aria-label={run.status} /><div><strong>{run.goal}</strong><p>{run.events.length} événement{run.events.length > 1 ? "s" : ""} · {run.status === "completed" ? "terminée" : run.status === "waiting_for_approval" ? "en attente de validation" : "échouée"}</p></div><time dateTime={run.createdAt}>{new Date(run.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time></article>)}</div></section>}
 
     <div className="dashboard-bottom-grid"><section className="panel projects-panel"><SectionHeading icon="folder" title="Projets récents" action={projects.length > 0 ? "Voir les projets" : undefined} href="/projects" />{projects.length === 0 ? <EmptyState icon="folder" title="Aucun projet" text="Créez un projet pour rassembler vos fichiers, tâches et contexte." action={<Link className="empty-state-action" href="/projects">Créer un projet</Link>} /> : <div className="dashboard-list">{projects.slice(0, 4).map((project) => <div className="dashboard-list-row" key={project.id}><span className="dashboard-project-icon"><Icon name="folder" size={15} /></span><div><strong>{project.name}</strong><span>{project.progress}% · {project.status === "active" ? "Actif" : project.status}</span></div></div>)}</div>}</section><section className="panel tasks-panel"><SectionHeading icon="checkCircle" title="Tâches du jour" action={tasks.length > 0 ? "Voir les tâches" : undefined} href="/tasks" />{tasks.length === 0 ? <EmptyState icon="checkCircle" title="Aucune tâche" text="Créez une tâche pour garder la prochaine action visible." action={<Link className="empty-state-action" href="/tasks">Créer une tâche</Link>} /> : <div className="dashboard-list">{tasks.filter((task) => task.status !== "completed").slice(0, 5).map((task) => <div className="dashboard-list-row" key={task.id}><span className="dashboard-list-dot" /><div><strong>{task.title}</strong><span>{task.dueAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" }).format(new Date(task.dueAt)) : "Sans échéance"}</span></div></div>)}</div>}</section></div>
   </>;
