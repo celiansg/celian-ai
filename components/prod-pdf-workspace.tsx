@@ -1,21 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, FileCheck2, FileOutput, FileSearch, Layers3, Scissors, UploadCloud } from "lucide-react";
+import { CheckCircle2, Crop, FileCheck2, FileOutput, FileSearch, Layers3, Scissors, UploadCloud } from "lucide-react";
 import { PdfDropzone } from "@/components/pdf-dropzone";
 import { PdfPreview } from "@/components/pdf-preview";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { BleedPanel } from "@/components/bleed-panel";
 import { CutlinePanel } from "@/components/cutline-panel";
+import { CropMarksPanel } from "@/components/crop-marks-panel";
 import { ImpositionPanel } from "@/components/imposition-panel";
 import { formatFileSize } from "@/lib/local-files/indexed-db";
 
-type ToolId = "preflight" | "bleed" | "cutline" | "imposition";
+type ToolId = "preflight" | "bleed" | "cutline" | "cropmarks" | "imposition";
 
 const tools: Array<{ id: ToolId; label: string; description: string; icon: typeof FileSearch }> = [
   { id: "preflight", label: "Contrôler le PDF", description: "Pages, formats, fonds perdus, ressources", icon: FileSearch },
   { id: "bleed", label: "Ajouter un fond perdu", description: "Répétition, étirement, miroir ou blanc", icon: FileOutput },
   { id: "cutline", label: "Créer un tracé de découpe", description: "Rectangle vectoriel en ton direct", icon: Scissors },
+  { id: "cropmarks", label: "Traits de coupe / format fini", description: "Ajouter ou supprimer les débords", icon: Crop },
   { id: "imposition", label: "Préparer une imposition", description: "Épreuve N-up ou répétition", icon: Layers3 },
 ];
 
@@ -62,6 +64,7 @@ export function ProdPdfWorkspace({ file: controlledFile, onFileChange }: { file?
               {activeTool === "preflight" && <PreflightPanel file={file} />}
               {activeTool === "bleed" && <BleedPanel file={file} />}
               {activeTool === "cutline" && <CutlinePanel file={file} />}
+              {activeTool === "cropmarks" && <CropMarksPanel file={file} />}
               {activeTool === "imposition" && <ImpositionPanel file={file} />}
             </div>
           </aside>

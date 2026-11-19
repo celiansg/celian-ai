@@ -7,6 +7,7 @@ import { generatePreflightReportPdf } from "../lib/bat/report.ts";
 import { imposePdf } from "../lib/bat/imposition.ts";
 import { addCutlineToPdf, inspectCutlineSpot } from "../lib/bat/cutline.ts";
 import { placeBatVisuals } from "../lib/bat/visual.ts";
+import { addCropMarksToPdf, trimPdfToFinished } from "../lib/bat/crop-marks.ts";
 
 test("le calcul de fond perdu conserve le format fini et ajoute deux marges", () => {
   const output = calculateBleedOutput(841.89, 595.276, 3);
@@ -162,4 +163,21 @@ test("le mode recto-verso sépare deux modèles pour permettre des informations 
     { sourceIndex: 0, page: 3 }, { sourceIndex: 0, page: 4 },
   ], "recto_verso_compact");
   assert.equal((await PDFDocument.load(compactBytes)).getPageCount(), 1);
+});
+
+test("les traits de coupe utilisent la TrimBox et le rognage retire les débords", async () => {
+  const source = await PDFDocument.create();
+  const page = source.addPage([220, 120]);
+  page.setTrimBox(10, 10, 200, 100);
+  const marked = await addCropMarksToPdf(new Uint8Array(await source.save()), { markLengthMm: 10, offsetMm: 3, lineWidthPt: 0.25, pages: "all" });
+  const markedDocument = await PDFDocument.load(marked.bytes);
+  const markedPage = markedDocument.getPage(0);
+  assert.equal(Math.round(markedPage.getTrimBox().width), 200);
+  assert.ok(markedPage.getWidth() > 220);
+
+  const trimmed = await trimPdfToFinished(marked.bytes);
+  const trimmedDocument = await PDFDocument.load(trimmed.bytes);
+  const trimmedPage = trimmedDocument.getPage(0);
+  assert.equal(Math.round(trimmedPage.getWidth()), 200);
+  assert.equal(Math.round(trimmedPage.getHeight()), 100);
 });
