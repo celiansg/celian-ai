@@ -52,7 +52,7 @@ export function ProdPdfWorkspace({ file: controlledFile, onFileChange }: { file?
         <div className="prod-pdf-workbench">
           <section className="prod-pdf-viewer" aria-labelledby="prod-viewer-title">
           <div className="prod-pdf-viewer-head"><div><div className="eyebrow">Aperçu document</div><h3 id="prod-viewer-title">Lecture du PDF</h3></div><PdfDropzone label="Changer de PDF" hint="Le nouveau fichier remplacera l’aperçu" onFile={selectFile} /></div>
-            <PdfPreview file={{ blob: file }} />
+            <PdfPreview file={{ blob: file }} showThumbnails />
           </section>
           <aside id="prod-action-rail" className="prod-action-rail" aria-labelledby="prod-actions-title">
             <div className="prod-action-rail-head"><div><div className="eyebrow">Actions</div><h3 id="prod-actions-title">Contrôler ce PDF</h3></div><span className="prod-live-dot">Prêt</span></div>
