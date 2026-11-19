@@ -32,6 +32,7 @@ import { preflightPdf, preflightProfiles } from "@/lib/bat/preflight";
 import { addBleedToPdf, type BleedMethod } from "@/lib/bat/bleed";
 import { addCutlineToPdf, type CutlineMode } from "@/lib/bat/cutline";
 import { imposePdf } from "@/lib/bat/imposition";
+import { getLocalConversation, saveLocalConversation } from "@/lib/local-workspace/indexed-db";
 
 type StagedFile = {
   id: string;
@@ -215,27 +216,43 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   const conversationStorageKey = `agents-conversation-${agent.id}`;
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(conversationStorageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored) as UIMessage[];
-        if (Array.isArray(parsed)) setMessages(parsed);
+    let active = true;
+    void (async () => {
+      try {
+        const stored = await getLocalConversation(agent.id);
+        if (active && stored?.messages && Array.isArray(stored.messages)) setMessages(stored.messages as UIMessage[]);
+        if (active && !stored) {
+          const fallback = window.localStorage.getItem(conversationStorageKey);
+          if (fallback) {
+            const parsed = JSON.parse(fallback) as UIMessage[];
+            if (Array.isArray(parsed)) setMessages(parsed);
+          }
+        }
+      } catch {
+        // IndexedDB peut être indisponible en navigation privée ou après une migration interrompue.
+        // Le repli localStorage permet de conserver l’ouverture et l’historique du chat.
+        try {
+          const fallback = window.localStorage.getItem(conversationStorageKey);
+          if (active && fallback) {
+            const parsed = JSON.parse(fallback) as UIMessage[];
+            if (Array.isArray(parsed)) setMessages(parsed);
+          }
+        } catch {
+          // Une conversation corrompue ne doit pas empêcher l’ouverture de l’agent.
+        }
+      } finally {
+        if (active) setHistoryHydrated(true);
       }
-    } catch {
-      // Une conversation corrompue ne doit pas empêcher l’ouverture de l’agent.
-    } finally {
-      setHistoryHydrated(true);
-    }
-  }, [conversationStorageKey, setMessages]);
+    })();
+    return () => { active = false; };
+  }, [agent.id, conversationStorageKey, setMessages]);
 
   useEffect(() => {
     if (!historyHydrated) return;
-    try {
-      window.localStorage.setItem(conversationStorageKey, JSON.stringify(messages));
-    } catch {
-      // Le chat reste utilisable si le quota local est atteint.
-    }
-  }, [conversationStorageKey, historyHydrated, messages]);
+    void saveLocalConversation({ agentId: agent.id, title: `Conversation avec ${agent.handle}`, messages }).catch(() => {
+      try { window.localStorage.setItem(conversationStorageKey, JSON.stringify(messages)); } catch { /* Le chat reste utilisable si le quota local est atteint. */ }
+    });
+  }, [agent.handle, agent.id, conversationStorageKey, historyHydrated, messages]);
 
   const stageFiles = useCallback((incoming: File[]) => {
     setAttachmentError(null);

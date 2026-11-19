@@ -63,3 +63,13 @@ export interface LocalAgentRun {
   pendingAction?: PendingAction;
   createdAt: string;
 }
+
+export interface LocalConversation {
+  id: string;
+  agentId: AgentId;
+  projectId?: string;
+  title: string;
+  messages: unknown[];
+  createdAt: string;
+  updatedAt: string;
+}

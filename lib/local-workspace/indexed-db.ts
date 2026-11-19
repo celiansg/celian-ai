@@ -3,6 +3,7 @@
 import type {
   LocalActivity,
   LocalAgentRun,
+  LocalConversation,
   LocalPreflightReport,
   LocalProject,
   LocalProjectStatus,
@@ -16,13 +17,14 @@ import type { MailDraft, MailVersion } from "../mail/history";
 // Séparé du store files géré par lib/local-files pour éviter les migrations
 // croisées entre deux schémas IndexedDB indépendants.
 const DB_NAME = "agents-local-data";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const PROJECTS_STORE = "projects";
 const TASKS_STORE = "tasks";
 const ACTIVITIES_STORE = "activities";
 const MAIL_VERSIONS_STORE = "mailVersions";
 const PREFLIGHT_REPORTS_STORE = "preflightReports";
 const AGENT_RUNS_STORE = "agentRuns";
+const CONVERSATIONS_STORE = "conversations";
 
 function ensureBrowser() {
   if (typeof window === "undefined" || !window.indexedDB) {
@@ -66,6 +68,11 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!database.objectStoreNames.contains(AGENT_RUNS_STORE)) {
         const store = database.createObjectStore(AGENT_RUNS_STORE, { keyPath: "id" });
         store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("agentId", "agentId", { unique: false });
+      }
+      if (!database.objectStoreNames.contains(CONVERSATIONS_STORE)) {
+        const store = database.createObjectStore(CONVERSATIONS_STORE, { keyPath: "id" });
+        store.createIndex("updatedAt", "updatedAt", { unique: false });
         store.createIndex("agentId", "agentId", { unique: false });
       }
     };
@@ -154,6 +161,26 @@ export async function updateLocalAgentRun(id: string, input: Partial<Pick<LocalA
   const run = runs.find((item) => item.id === id);
   if (!run) throw new Error("Exécution introuvable.");
   return put(AGENT_RUNS_STORE, { ...run, ...input });
+}
+
+export async function getLocalConversation(agentId: LocalConversation["agentId"], projectId?: string) {
+  const conversations = await readAll<LocalConversation>(CONVERSATIONS_STORE);
+  return conversations.find((conversation) => conversation.agentId === agentId && conversation.projectId === projectId) ?? null;
+}
+
+export async function saveLocalConversation(input: { agentId: LocalConversation["agentId"]; projectId?: string; title: string; messages: unknown[] }) {
+  const existing = await getLocalConversation(input.agentId, input.projectId);
+  const now = new Date().toISOString();
+  const conversation: LocalConversation = {
+    id: existing?.id ?? makeId("conversation"),
+    agentId: input.agentId,
+    projectId: input.projectId,
+    title: input.title.trim().slice(0, 160) || "Conversation sans titre",
+    messages: input.messages,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  return put(CONVERSATIONS_STORE, conversation);
 }
 
 async function remove(storeName: string, id: string) {
