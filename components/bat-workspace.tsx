@@ -157,7 +157,7 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
     <div id="bat-generate">
       <header className="standalone-head">
         <div>
-          <div className="eyebrow">Étape 4 · action principale</div>
+          <div className="eyebrow">Étape 5 · action principale</div>
           <h1>Créer le BAT officiel</h1>
           <p>Modèle officiel AFLPH Coloz · Révision {version} · A4 paysage</p>
         </div>

@@ -37,7 +37,7 @@ export function ImpositionPanel() {
   }
 
   return <section id="bat-imposition" className="imposition-panel" aria-labelledby="imposition-title">
-    <div className="imposition-head"><div><div className="eyebrow">Étape 3 · facultative</div><h2 id="imposition-title">Mettre en page pour contrôle</h2><p>Place plusieurs pages sur une feuille en conservant le contenu vectoriel. Aucun repère machine n’est ajouté.</p></div><Layers3 size={22} aria-hidden="true" /></div>
+    <div className="imposition-head"><div><div className="eyebrow">Étape 4 · facultative</div><h2 id="imposition-title">Mettre en page pour contrôle</h2><p>Place plusieurs pages sur une feuille en conservant le contenu vectoriel. Aucun repère machine n’est ajouté.</p></div><Layers3 size={22} aria-hidden="true" /></div>
     <div className="imposition-warning">Cette fonction prépare une épreuve ou une mise en page de contrôle. Vérifiez le format fini, le sens de lecture et les contraintes de votre flux de production.</div>
     <div className="imposition-controls">
       <label>Mode<select value={mode} onChange={(event) => setMode(event.target.value as ImpositionMode)} disabled={busy}><option value="n_up">N-up · pages successives</option><option value="step_repeat">Répétition · même page</option></select></label>
