@@ -22,7 +22,7 @@ export const agents: AgentDefinition[] = [
       { label: "Organise ce projet", value: "Organise le prochain travail utile pour ce projet." },
       { label: "Gère cette demande", value: "Gère cette demande de bout en bout et demande mon accord pour les actions sensibles." },
     ],
-    tools: ["getProject", "getTasks", "createTask", "getRecentActivity"],
+    tools: ["getProject", "getTasks", "createTask", "getRecentActivity", "delegateAgent"],
     capabilities: ["Orchestration", "Routage", "Planification", "Mémoire projet"],
     permissions: ["read", "write", "approval_required"],
     behavior: {

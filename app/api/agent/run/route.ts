@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/ai/orchestration/runner";
-import { routeGoal } from "@/lib/ai/orchestration/router";
+import { normalizeAgentHandle, routeGoal } from "@/lib/ai/orchestration/router";
+import { getAgent } from "@/lib/ai/agents";
 import type { AgentId } from "@/lib/ai/types";
 import { aiAuthError, authenticateAiRequest } from "@/lib/firebase/server-auth";
 
@@ -18,34 +19,40 @@ export async function POST(request: Request) {
   const identity = await authenticateAiRequest(request);
   if (!identity.ok) return aiAuthError(identity);
   try {
-    const body = (await request.json()) as { goal?: string; agentId?: AgentId; projectId?: string };
+    const body = (await request.json()) as { goal?: string; agentId?: AgentId; projectId?: string; workspaceContext?: Record<string, unknown> };
     if (!body.goal?.trim()) return NextResponse.json({ error: "Une demande est requise." }, { status: 400 });
-    const requestedHandle = body.goal.match(/@([a-zà-ÿ]+)/i)?.[1]?.toLowerCase();
-    const explicitAgent = body.agentId ?? (requestedHandle ? explicitHandles[requestedHandle] : undefined);
+    const requestedHandle = body.goal.match(/@([a-zà-ÿ]+)/i)?.[1];
+    const explicitAgent = body.agentId ?? (requestedHandle ? explicitHandles[normalizeAgentHandle(requestedHandle)] : undefined);
     const routeCandidates = routeGoal(body.goal, explicitAgent);
     const primaryAgent = routeCandidates[0] ?? "celian";
     const primary = await runAgent({
       agentId: primaryAgent,
       goal: body.goal,
-      context: { userId: identity.userId, projectId: body.projectId, facts: { routeCandidates } },
+      context: { userId: identity.userId, projectId: body.projectId, facts: { routeCandidates, workspaceContext: body.workspaceContext } },
     });
 
     if (primaryAgent !== "celian" || routeCandidates.length <= 1 || primary.status === "failed") {
       return NextResponse.json(primary);
     }
 
+    const alreadyDelegated = new Set(
+      primary.events
+        .filter((event) => event.type === "handoff_started" && typeof event.metadata?.to === "string")
+        .map((event) => String(event.metadata?.to)),
+    );
     const delegated = [];
-    for (const delegatedAgentId of routeCandidates.slice(1, 4)) {
+    for (const delegatedAgentId of routeCandidates.slice(1, 4).filter((id) => !alreadyDelegated.has(id))) {
+      const specialist = getAgent(delegatedAgentId);
       delegated.push(await runAgent({
         agentId: delegatedAgentId,
-        goal: `Sous-objectif spécialisé dans le cadre de cette demande : ${body.goal}`,
-        context: { userId: identity.userId, projectId: body.projectId, facts: { routeCandidates, delegatedFrom: "celian" } },
+        goal: `Analyse uniquement l’aspect ${specialist.role} de cette demande et rends les éléments confirmés, les points manquants et la prochaine action utile : ${body.goal}`,
+        context: { userId: identity.userId, projectId: body.projectId, facts: { routeCandidates, delegatedFrom: "celian", workspaceContext: body.workspaceContext } },
       }));
     }
 
     const events = [...primary.events];
     for (const [index, result] of delegated.entries()) {
-      const delegatedId = routeCandidates[index + 1];
+      const delegatedId = routeCandidates.slice(1, 4).filter((id) => !alreadyDelegated.has(id))[index];
       events.push({ id: crypto.randomUUID(), type: "handoff_started", agentId: "celian", summary: `@Célian transmet le sous-objectif à @${delegatedId}`, metadata: { to: delegatedId }, createdAt: new Date().toISOString() });
       events.push(...result.events);
     }

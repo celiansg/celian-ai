@@ -11,6 +11,7 @@ import {
 } from "ai";
 import { z } from "zod";
 import { getAgent } from "@/lib/ai/agents";
+import type { AgentId } from "@/lib/ai/types";
 import { agentMaxSteps } from "@/lib/ai/config";
 import { buildAgentSystemPrompt } from "@/lib/ai/policy";
 import { getProjectMemory } from "@/lib/ai/memory/project-memory";
@@ -67,8 +68,8 @@ function getProvider(choice: ReturnType<typeof normalizeModelChoice>, agentModel
   return google(choice === "gemini" ? defaultGeminiModel : agentModel || defaultGeminiModel);
 }
 
-function createWorkspaceTools(userId: string, projectId: string | undefined, projectMemory?: Awaited<ReturnType<typeof getProjectMemory>>, workspaceContext?: z.infer<typeof chatRequestSchema>['workspaceContext']) {
-  return {
+function createWorkspaceTools(agentId: AgentId, userId: string, projectId: string | undefined, projectMemory?: Awaited<ReturnType<typeof getProjectMemory>>, workspaceContext?: z.infer<typeof chatRequestSchema>['workspaceContext']) {
+  const allTools = {
     searchWorkspaceProjects: tool({
       description: "Recherche un projet visible par nom pour retrouver son identifiant avant de créer une tâche liée.",
       inputSchema: z.object({ query: z.string().trim().min(1).max(120) }),
@@ -232,7 +233,36 @@ function createWorkspaceTools(userId: string, projectId: string | undefined, pro
         message: "Le provider Gmail n’est pas connecté : aucun email n’a été envoyé et aucune action externe n’est déclarée comme réalisée.",
       }),
     }),
+    ...(agentId === "prod" ? {
+      preflightPdf: tool({
+        description: "Contrôle le PDF joint avec un profil prépresse et retourne uniquement les mesures, alertes et limites vérifiables. Le fichier reste côté navigateur.",
+        inputSchema: z.object({ profile: z.enum(["generic", "a4Landscape", "a4Portrait", "digitalPrint"]).default("generic") }),
+      }),
+      addBleedPdf: tool({
+        description: "Prépare une copie du PDF joint avec un fond perdu choisi. Cette opération est locale et ne modifie jamais l’original.",
+        inputSchema: z.object({ bleedMm: z.number().min(0.1).max(20), dpi: z.enum(["150", "300"]).default("300"), method: z.enum(["edge_repeat", "edge_stretch", "mirror", "blank"]).default("edge_repeat") }),
+      }),
+      addCutlinePdf: tool({
+        description: "Ajoute à une copie du PDF joint un tracé vectoriel en ton direct. Les dimensions doivent être confirmées par l’utilisateur.",
+        inputSchema: z.object({ mode: z.enum(["trim", "custom"]).default("trim"), widthMm: z.number().positive().optional(), heightMm: z.number().positive().optional(), spotName: z.string().min(1).max(64).default("CutContour"), lineWidthPt: z.number().positive().max(20).default(0.25) }),
+      }),
+      imposePdf: tool({
+        description: "Prépare une copie d’épreuve N-up du PDF joint. Ne présente pas cette sortie comme une imposition de production certifiée.",
+        inputSchema: z.object({ sheet: z.enum(["a4", "a3"]).default("a4"), columns: z.number().int().min(1).max(4).default(2), rows: z.number().int().min(1).max(4).default(2), gutterMm: z.number().min(0).max(100).default(5), marginMm: z.number().min(0).max(100).default(5) }),
+      }),
+    } : {}),
   };
+  const allowlist: Record<AgentId, string[]> = {
+    celian: ["searchWorkspaceProjects", "getProjectContext", "listWorkspaceTasks", "createWorkspaceTask", "createActivity", "getRecentActivity", "Agent", "PlanWrite", "Question"],
+    prod: ["getProjectContext", "searchWorkspaceFiles", "createActivity", "preflightPdf", "addBleedPdf", "addCutlinePdf", "imposePdf", "Question"],
+    client: ["getProjectContext", "getRecentActivity", "createActivity", "sendClientEmail", "PlanWrite", "Question"],
+    design: ["getProjectContext", "searchWorkspaceFiles", "createActivity", "Question"],
+    dev: ["getProjectContext", "listWorkspaceTasks", "createWorkspaceTask", "createActivity", "PlanWrite", "Question"],
+    business: ["getProjectContext", "listWorkspaceTasks", "createActivity", "Question"],
+    bts: ["getProjectContext", "createActivity", "Question"],
+  };
+  const allowed = new Set(allowlist[agentId]);
+  return Object.fromEntries(Object.entries(allTools).filter(([name]) => allowed.has(name)));
 }
 
 function getPublicStreamError(error: unknown) {
@@ -253,8 +283,8 @@ export async function POST(request: Request) {
     const agent = getAgent(agentId);
     const projectId = body.projectId;
     const modelChoice = normalizeModelChoice(body.model);
-    const projectMemory = projectId ? await getProjectMemory(projectId) : undefined;
-    const tools = createWorkspaceTools(identity.userId, projectId, projectMemory, body.workspaceContext);
+    const projectMemory = projectId ? await getProjectMemory(projectId, body.workspaceContext) : undefined;
+    const tools = createWorkspaceTools(agentId, identity.userId, projectId, projectMemory, body.workspaceContext);
     const model = getProvider(modelChoice, agent.model);
     const messages = body.messages as UIMessage[];
 

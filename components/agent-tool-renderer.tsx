@@ -1,11 +1,32 @@
 "use client";
 
-import { Check, Mail, ShieldAlert, X } from "lucide-react";
+import { Check, Download, FileSearch, Mail, ShieldAlert, X } from "lucide-react";
 import { ToolRenderer, type ToolRendererProps } from "@/components/agent-elements/tools/tool-renderer";
 
 type ApprovalPart = ToolRendererProps["part"] & {
   approval?: { id?: string; approved?: boolean; reason?: string };
 };
+
+const pdfToolLabels: Record<string, string> = {
+  preflightPdf: "Contrôle prépresse du PDF",
+  addBleedPdf: "Préparation du fond perdu",
+  addCutlinePdf: "Création du tracé de découpe",
+  imposePdf: "Préparation de l’imposition",
+};
+
+function PdfToolCard({ part, toolName }: { part: ApprovalPart; toolName: string }) {
+  const output = (part.output ?? {}) as Record<string, unknown>;
+  const isPending = part.state !== "output-available" && part.state !== "output-error";
+  const report = output.report as { status?: string; summary?: { info: number; warning: number; error: number; unsupported: number }; file?: { pages: number } } | undefined;
+  const failed = part.state === "output-error" || output.status === "failed" || output.status === "not_available";
+  return <section className={`agent-pdf-tool ${failed ? "is-error" : ""}`} aria-live="polite">
+    <div className="agent-pdf-tool-title"><FileSearch size={15} aria-hidden="true" /><strong>{pdfToolLabels[toolName] ?? "Action PDF"}</strong><span>{isPending ? "En cours…" : failed ? "À vérifier" : "Terminé"}</span></div>
+    {isPending ? <p>Le fichier joint est analysé localement. Aucun octet du PDF n’est déclaré comme enregistré côté serveur.</p>
+      : report?.summary ? <p>{report.file?.pages ?? 0} page(s) · {report.summary.error} erreur(s) · {report.summary.warning} avertissement(s) · statut {report.status ?? "à vérifier"}</p>
+      : <p>{String(output.message ?? (failed ? "L’action n’a pas pu être réalisée." : "Copie préparée sans modifier l’original."))}</p>}
+    {typeof output.downloadUrl === "string" && typeof output.downloadName === "string" && <a className="agent-pdf-download" href={output.downloadUrl} download={output.downloadName}><Download size={14} aria-hidden="true" /> Télécharger {output.downloadName}</a>}
+  </section>;
+}
 
 export function AgentToolRenderer({
   part: rawPart,
@@ -14,6 +35,8 @@ export function AgentToolRenderer({
   onApproval,
 }: ToolRendererProps & { onApproval?: (id: string, approved: boolean) => void }) {
   const part = rawPart as ApprovalPart;
+  const pdfToolName = part.type.startsWith("tool-") ? part.type.slice(5) : "";
+  if (pdfToolName in pdfToolLabels) return <PdfToolCard part={part} toolName={pdfToolName} />;
   if (part.type === "tool-sendClientEmail") {
     const input = (part.input ?? {}) as Record<string, unknown>;
     const approvalId = part.approval?.id;

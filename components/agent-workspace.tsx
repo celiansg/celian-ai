@@ -22,11 +22,16 @@ import {
   listWorkspaceActivities,
   listWorkspaceProjects,
   listWorkspaceTasks,
+  createWorkspaceActivity,
 } from "@/lib/workspace/repository";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { getAiAuthorizationHeaders } from "@/lib/firebase/authorization";
 import { persistAgentTask } from "@/lib/ai/workspace-task";
 import { agentMaxSteps } from "@/lib/ai/config";
+import { preflightPdf, preflightProfiles } from "@/lib/bat/preflight";
+import { addBleedToPdf, type BleedMethod } from "@/lib/bat/bleed";
+import { addCutlineToPdf, type CutlineMode } from "@/lib/bat/cutline";
+import { imposePdf } from "@/lib/bat/imposition";
 
 type StagedFile = {
   id: string;
@@ -81,6 +86,8 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   const automaticRequests = useRef(0);
   const handledTaskCalls = useRef(new Set<string>());
   const stagedFilesRef = useRef(stagedFiles);
+  const lastSentFilesRef = useRef<File[]>([]);
+  const preparedUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     stagedFilesRef.current = stagedFiles;
@@ -88,9 +95,13 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
 
   useEffect(() => {
     return () => {
+      // The ref intentionally holds URLs created by client-side PDF tools until unmount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const preparedUrls = preparedUrlsRef.current;
       stagedFilesRef.current.forEach((staged) => {
         if (staged.previewUrl) URL.revokeObjectURL(staged.previewUrl);
       });
+      preparedUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -120,6 +131,9 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
   } = useChat({
     id: `agent-${agent.id}`,
     transport,
+    onFinish: () => {
+      void createWorkspaceActivity({ description: `${agent.handle} a terminé une exécution conversationnelle.`, agentId: agent.id });
+    },
     sendAutomaticallyWhen: (state) => {
       if (automaticRequests.current >= agentMaxSteps) return false;
       if (!lastAssistantMessageIsCompleteWithApprovalResponses(state)) {
@@ -134,7 +148,49 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
       return true;
     },
     onToolCall: async ({ toolCall }) => {
-      if (toolCall.dynamic || toolCall.toolName !== "createWorkspaceTask") return;
+      if (toolCall.dynamic) return;
+      if (["preflightPdf", "addBleedPdf", "addCutlinePdf", "imposePdf"].includes(toolCall.toolName)) {
+        const input = (toolCall.input ?? {}) as Record<string, unknown>;
+        const file = lastSentFilesRef.current.find((candidate) => candidate.type === "application/pdf" || candidate.name.toLowerCase().endsWith(".pdf"));
+        if (!file) {
+          void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "not_available", message: "Aucun PDF joint à cette demande." } });
+          return;
+        }
+        try {
+          if (toolCall.toolName === "preflightPdf") {
+            const profileId = typeof input.profile === "string" ? input.profile : "generic";
+            const report = await preflightPdf(new Uint8Array(await file.arrayBuffer()), preflightProfiles[profileId] ?? preflightProfiles.generic);
+            void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "completed", fileName: file.name, report } });
+            return;
+          }
+          if (toolCall.toolName === "addBleedPdf") {
+            const result = await addBleedToPdf(file, { bleedMm: Number(input.bleedMm), dpi: Number(input.dpi) as 150 | 300, method: String(input.method) as BleedMethod, pages: "all" });
+            const downloadName = `${file.name.replace(/\.pdf$/i, "")}_${result.bleedMm}mm-fond-perdu.pdf`;
+            const downloadUrl = URL.createObjectURL(new Blob([result.bytes.buffer as ArrayBuffer], { type: "application/pdf" }));
+            preparedUrlsRef.current.push(downloadUrl);
+            void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "completed", downloadName, downloadUrl, pageCount: result.pageCount, message: result.warning } });
+            return;
+          }
+          if (toolCall.toolName === "addCutlinePdf") {
+            const result = await addCutlineToPdf(new Uint8Array(await file.arrayBuffer()), { mode: String(input.mode) as CutlineMode, widthMm: Number(input.widthMm) || undefined, heightMm: Number(input.heightMm) || undefined, spotName: String(input.spotName || "CutContour"), lineWidthPt: Number(input.lineWidthPt || 0.25), pages: "all" });
+            const downloadName = `${file.name.replace(/\.pdf$/i, "")}-trace-decoupe.pdf`;
+            const downloadUrl = URL.createObjectURL(new Blob([result.bytes.buffer as ArrayBuffer], { type: "application/pdf" }));
+            preparedUrlsRef.current.push(downloadUrl);
+            void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "completed", downloadName, downloadUrl, pageCount: result.pageCount, spotName: result.spotName, message: result.warning } });
+            return;
+          }
+          const sheet = input.sheet === "a3" ? [297, 420] : [210, 297];
+          const result = await imposePdf(new Uint8Array(await file.arrayBuffer()), { sheetWidthMm: sheet[0], sheetHeightMm: sheet[1], columns: Number(input.columns || 2), rows: Number(input.rows || 2), gutterMm: Number(input.gutterMm || 5), marginMm: Number(input.marginMm || 5), mode: "n_up" });
+          const downloadName = `${file.name.replace(/\.pdf$/i, "")}-imposition.pdf`;
+          const downloadUrl = URL.createObjectURL(new Blob([result.bytes.buffer as ArrayBuffer], { type: "application/pdf" }));
+          preparedUrlsRef.current.push(downloadUrl);
+          void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "completed", downloadName, downloadUrl, outputPages: result.outputPages, message: result.warning } });
+        } catch (caught) {
+          void addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: { status: "failed", message: caught instanceof Error ? caught.message : "Le contrôle PDF a échoué." } });
+        }
+        return;
+      }
+      if (toolCall.toolName !== "createWorkspaceTask") return;
       const { toolCallId, input } = toolCall;
       if (handledTaskCalls.current.has(toolCallId)) return;
 
@@ -224,6 +280,7 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
     automaticRequests.current = 0;
     handledTaskCalls.current.clear();
     const files = stagedFilesRef.current;
+    lastSentFilesRef.current = files.map((staged) => staged.file);
     if (files.length > 0) {
       const transfer = new DataTransfer();
       files.forEach((staged) => transfer.items.add(staged.file));

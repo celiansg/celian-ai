@@ -49,6 +49,18 @@ export function buildAgentSystemPrompt({ agent, projectId, memory, mode }: { age
     `Avant de demander une précision, vérifie cette checklist métier : ${agent.behavior.contextChecklist.join(" ; ") || "aucune checklist spécifique"}.`,
     `Validation obligatoire pour : ${agent.behavior.approvalTriggers.join(" ; ") || "aucune action sensible spécifique"}.`,
     ...commonAgentPolicy,
+    agent.id === "prod"
+      ? "Pour un PDF joint, commence par le contrôle preflightPdf avant toute conclusion. Utilise addBleedPdf, addCutlinePdf ou imposePdf uniquement si l’utilisateur le demande et avec des paramètres explicites. Ne modifie jamais le fichier source et signale le fichier de sortie créé côté navigateur.": "",
+    agent.id === "client"
+      ? "Prépare des mails courts, naturels et directement réutilisables. Mets en gras uniquement les informations essentielles, termine par « Cordialement, » et ne mentionne jamais un prix sans demande explicite. Une action sendClientEmail reste soumise à validation et ne doit pas être présentée comme envoyée.": "",
+    agent.id === "dev"
+      ? "Tu peux analyser l’architecture et les données disponibles, mais ne prétends jamais avoir modifié du code, lancé un test ou déployé sans outil qui le confirme. Signale clairement les commandes ou accès externes nécessaires.": "",
+    agent.id === "design"
+      ? "Vérifie toujours le support, le format, la hiérarchie et les contraintes disponibles avant de proposer une direction visuelle. Sépare les faits du brief et les recommandations créatives.": "",
+    agent.id === "business"
+      ? "Sépare systématiquement chiffre d’affaires, coûts, marge brute, marge nette, hypothèses, risques et données manquantes. Ne transforme pas une estimation en résultat confirmé.": "",
+    agent.id === "bts"
+      ? "Pour l’apprentissage, privilégie : explication simple, exemple concret, vocabulaire professionnel, résumé puis exercice ou quiz court. Adapte la difficulté aux erreurs connues plutôt que d’inventer un historique.": "",
     `Projet actif : ${projectId || "aucun projet sélectionné"}.`,
     "Mémoire projet disponible :\n" + formatProjectMemory(memory),
     agent.id === "celian"

@@ -5,6 +5,7 @@ import { getTool } from "../tools";
 import { buildAgentSystemPrompt } from "../policy";
 import { getProjectMemory } from "../memory/project-memory";
 import type { AgentContext, AgentEventType, AgentId, AgentRunEvent, AgentRunResult } from "../types";
+import type { ToolDefinition } from "../tools";
 
 function event(type: AgentEventType, agentId: AgentId, summary: string, metadata?: Record<string, unknown>): AgentRunEvent {
   return { id: crypto.randomUUID(), type, agentId, summary, metadata, createdAt: new Date().toISOString() };
@@ -13,31 +14,57 @@ function event(type: AgentEventType, agentId: AgentId, summary: string, metadata
 export async function runAgent({ agentId, goal, context, handoffDepth = 0 }: { agentId: AgentId; goal: string; context: AgentContext; handoffDepth?: number }): Promise<AgentRunResult> {
   const definition = getAgent(agentId);
   const provider = getAIProvider(resolveProvider(definition.provider));
-  const projectMemory = context.projectId ? await getProjectMemory(context.projectId) : undefined;
+  const projectMemory = context.projectId ? await getProjectMemory(context.projectId, context.facts?.workspaceContext as Parameters<typeof getProjectMemory>[1]) : undefined;
   const events: AgentRunEvent[] = [event("agent_started", agentId, `${definition.handle} analyse la demande` )];
   let answer = "";
   const seenActions = new Set<string>();
+  let stepPrompt = goal;
+
+  const configuredTools = definition.tools.map((name) => getTool(name)).filter((tool): tool is ToolDefinition => Boolean(tool));
+  if (agentId === "celian") {
+    configuredTools.push({
+      name: "delegateAgent",
+      description: "Transmet un sous-objectif précis à un agent spécialisé et renvoie son résultat public.",
+      permission: "read",
+      inputSchema: { agentId: "string", goal: "string" },
+      execute: async (input, delegatedContext) => {
+        const delegatedAgentId = typeof input.agentId === "string" && ["celian", "prod", "client", "design", "dev", "business", "bts"].includes(input.agentId)
+          ? input.agentId as AgentId
+          : undefined;
+        if (!delegatedAgentId || typeof input.goal !== "string" || input.goal.trim().length < 5) {
+          return { status: "invalid", message: "Le sous-objectif ou l’agent demandé est invalide." };
+        }
+        const delegated = await runAgent({ agentId: delegatedAgentId, goal: input.goal, context: delegatedContext, handoffDepth: handoffDepth + 1 });
+        return { status: delegated.status, agentId: delegatedAgentId, summary: delegated.answer, events: delegated.events };
+      },
+    });
+  }
 
   for (let step = 0; step < agentMaxSteps; step += 1) {
     const response = await provider.generate({
       system: buildAgentSystemPrompt({ agent: definition, projectId: context.projectId, memory: projectMemory, mode: "agent" }),
-      prompt: goal,
+      prompt: stepPrompt,
       context: { projectId: context.projectId, step, agentId, ...(context.facts ?? {}) },
       tools: definition.tools,
+      toolDefinitions: configuredTools,
+      toolContext: context,
     });
     answer = response.text;
 
     if (response.toolCall) {
-      const tool = getTool(response.toolCall.name);
       events.push(event("tool_called", agentId, `${definition.handle} utilise ${response.toolCall.name}`, { input: response.toolCall.input }));
-      if (tool) {
-        const result = await tool.execute(response.toolCall.input, context);
-        events.push(event("tool_result", agentId, `${response.toolCall.name} a renvoyé un résultat structuré`, { result }));
-      } else {
-        events.push(event("tool_result", agentId, `${response.toolCall.name} n’est pas disponible dans cette exécution`, {
-          status: "not_connected",
-        }));
+      const result = response.toolResults?.find((item) => item.name === response.toolCall?.name)?.result;
+      const resultStatus = typeof result?.status === "string" ? result.status : "completed";
+      const resultSummary = resultStatus === "not_connected" || resultStatus === "not_persisted"
+        ? `${response.toolCall.name} n’est pas confirmé : ${String(result?.message ?? resultStatus)}`
+        : `${response.toolCall.name} a renvoyé un résultat vérifiable`;
+      events.push(event("tool_result", agentId, resultSummary, { result, status: resultStatus }));
+      if (response.toolCall.name === "delegateAgent" && result?.agentId) {
+        const delegatedAgent = getAgent(result.agentId as AgentId);
+        events.push(event("handoff_started", agentId, `${definition.handle} transmet le dossier à ${delegatedAgent.handle}`, { to: delegatedAgent.id }));
+        if (Array.isArray(result.events)) events.push(...result.events as AgentRunEvent[]);
       }
+      stepPrompt = `${goal}\n\nRésultat public de l’outil ${response.toolCall.name} : ${JSON.stringify(result ?? { status: "not_connected" })}`;
     }
 
     if (response.handoff) {

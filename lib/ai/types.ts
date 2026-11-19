@@ -27,6 +27,14 @@ export interface GenerateRequest {
   prompt: string;
   context?: Record<string, unknown>;
   tools?: string[];
+  toolDefinitions?: Array<{
+    name: string;
+    description: string;
+    inputSchema: Record<string, string>;
+    permission: ToolPermission;
+    execute: (input: Record<string, unknown>, context: AgentContext) => Promise<Record<string, unknown>>;
+  }>;
+  toolContext?: AgentContext;
 }
 
 export interface GenerateResponse {
@@ -38,6 +46,7 @@ export interface GenerateResponse {
   handoff?: AgentId;
   requiresApproval?: boolean;
   approvalDescription?: string;
+  toolResults?: Array<{ name: string; result: Record<string, unknown> }>;
 }
 
 export interface AIProvider {

@@ -1,5 +1,9 @@
 import type { AgentId } from "../types";
 
+export function normalizeAgentHandle(value: string) {
+  return value.toLocaleLowerCase("fr-FR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 const routes: Array<{ agent: AgentId; keywords: string[] }> = [
   { agent: "prod", keywords: ["bat", "impression", "grammage", "papier", "support", "finition", "faconnage", "production", "decoupe", "perforation", "pliage", "pelliculage", "marquage", "prepress", "fabrication"] },
   { agent: "client", keywords: ["mail", "email", "client", "relance", "reponse", "fournisseur", "validation"] },
@@ -11,7 +15,7 @@ const routes: Array<{ agent: AgentId; keywords: string[] }> = [
 
 export function routeGoal(goal: string, explicitAgent?: AgentId): AgentId[] {
   if (explicitAgent) return [explicitAgent];
-  const normalized = goal.toLocaleLowerCase("fr-FR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalized = normalizeAgentHandle(goal);
   const matches = routes.filter((route) => route.keywords.some((keyword) => normalized.includes(keyword))).map((route) => route.agent);
   return matches.length ? ["celian", ...Array.from(new Set(matches))] : ["celian"];
 }
