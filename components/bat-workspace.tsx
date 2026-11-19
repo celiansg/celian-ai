@@ -52,6 +52,18 @@ function describeVisualGroup(group: VisualSelection[], sources: Source[]) {
   return group.map(({ sourceIndex, page }) => `${sources[sourceIndex]?.name ?? "PDF"} · page ${page}`).join(" + ");
 }
 
+const layoutChoices: Array<{ id: BatVisualLayout; title: string; description: string }> = [
+  { id: "one_per_page", title: "Pages séparées", description: "Une page BAT par page PDF." },
+  { id: "recto_verso", title: "Recto-verso", description: "Un modèle par page BAT, idéal si les infos varient." },
+  { id: "recto_verso_compact", title: "Présentation compacte", description: "Deux modèles par page si les infos sont identiques." },
+];
+
+const variableStatusFields: Array<keyof BatDraftInput> = ["material", "format", "quantity"];
+
+function readBatFields(form: HTMLFormElement): BatDraftInput {
+  return Object.fromEntries(batFields.map(([key]) => [key, String(new FormData(form).get(key) ?? "").trim()])) as BatDraftInput;
+}
+
 function DraftPreview({ draft }: { draft: Draft }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -84,6 +96,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
   const [allSourcePages, setAllSourcePages] = useState(true);
   const [visualLayout, setVisualLayout] = useState<BatVisualLayout>("one_per_page");
   const [variantFields, setVariantFields] = useState<Record<number, BatDraftInput>>({});
+  const [globalFieldsPreview, setGlobalFieldsPreview] = useState<BatDraftInput>({});
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"source" | "draft" | "history" | null>(null);
   const [error, setError] = useState("");
@@ -118,6 +131,24 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
   const history = files.filter((file) => file.bat && (!projectId || file.projectId === projectId));
   const sourceFiles = files.filter((file) => file.kind === "pdf" && !file.bat
     && (!projectId || !file.projectId || file.projectId === projectId));
+  const currentSelections = getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage);
+  const currentGroups = groupVisualSelections(currentSelections, visualLayout);
+
+  function variantStatus(index: number) {
+    const values = { ...globalFieldsPreview, ...(variantFields[index] ?? {}) };
+    const missing = variableStatusFields.filter((key) => !values[key]?.trim());
+    return missing.length ? `À compléter · ${missing.map((key) => key === "material" ? "matière" : key === "format" ? "format" : "quantité").join(", ")}` : "Prête à vérifier";
+  }
+
+  function applyGlobalFieldsToVariants() {
+    if (!currentGroups.length) return;
+    setVariantFields(Object.fromEntries(currentGroups.map((_, index) => [index, {}])));
+  }
+
+  function copyVariantToAll(index: number) {
+    const sourceValues = variantFields[index] ?? {};
+    setVariantFields(Object.fromEntries(currentGroups.map((_, currentIndex) => [currentIndex, { ...sourceValues }])));
+  }
 
   async function openRevision(id: string) {
     setBusy("history");
@@ -192,6 +223,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       const control = formRef.current.elements.namedItem(key);
       if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.value = value;
     }
+    setGlobalFieldsPreview(readBatFields(formRef.current));
     setAssistantApplied(true);
     setDraft(null);
     setError("");
@@ -200,8 +232,8 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !available || projectStatus === "loading") return;
-    const form = new FormData(event.currentTarget);
-    const fields = Object.fromEntries(batFields.map(([key]) => [key, String(form.get(key) ?? "").trim()]));
+    const fields = readBatFields(event.currentTarget);
+    setGlobalFieldsPreview(fields);
     const selections = getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage);
     const groups = groupVisualSelections(selections, visualLayout);
     const pageInputs = groups.length
@@ -233,7 +265,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
           throw new Error("Projet indisponible.");
         }
         const saved = await saveLocalBat(blob, {
-          projectId: projectId || undefined, order: fields.order, company: fields.company, product: fields.product, templateVersion: version,
+          projectId: projectId || undefined, order: fields.order ?? "", company: fields.company ?? "", product: fields.product, templateVersion: version,
         });
         setFiles((items) => [saved, ...items]);
         setDraft({ name: saved.name, blob, savedId: saved.id });
@@ -258,7 +290,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
         </div>
       </header>
       <div className={styles.layout}>
-        <form ref={formRef} className={styles.panel} onSubmit={generate} onChange={() => { setDraft(null); setError(""); }}>
+        <form ref={formRef} className={styles.panel} onSubmit={generate} onChange={(event) => { setDraft(null); setError(""); setGlobalFieldsPreview(readBatFields(event.currentTarget)); }}>
           <section className={styles.assist} aria-labelledby="bat-assist-title">
             <div className={styles.assistHead}>
               <div><div className="eyebrow">Aide IA · relecture obligatoire</div><h2 id="bat-assist-title">Remplir depuis un texte</h2></div>
@@ -335,24 +367,21 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                     <option value="one">Une seule page</option>
                   </select>
                 </label>
-                <label>Présentation du BAT
-                  <select value={visualLayout} onChange={(event) => setVisualLayout(event.target.value as BatVisualLayout)}>
-                    <option value="one_per_page">Une page de BAT par page source</option>
-                    <option value="recto_verso">Recto-verso · 1 modèle par page BAT</option>
-                    <option value="recto_verso_compact">Recto-verso compact · 2 modèles par page BAT</option>
-                  </select>
-                </label>
-                <p>{visualLayout === "recto_verso"
-                  ? "Les pages sont regroupées deux par deux : RECTO à gauche, VERSO à droite. Chaque modèle reçoit sa propre page et ses propres informations."
-                  : visualLayout === "recto_verso_compact"
-                    ? "Les pages sont regroupées deux par deux, avec jusqu’à deux modèles par page. Utilisez ce mode si les informations sont identiques."
-                    : "Chaque page source devient une page de présentation séparée."}</p>
-                {groupVisualSelections(getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage), visualLayout).length > 1 && (
+                <div className={styles.structureBlock}>
+                  <strong>Structure de présentation</strong>
+                  <div className={styles.layoutChoices} role="radiogroup" aria-label="Choisir la structure du BAT">
+                    {layoutChoices.map((choice) => <button key={choice.id} type="button" role="radio" aria-checked={visualLayout === choice.id} className={`${styles.layoutChoice} ${visualLayout === choice.id ? styles.layoutChoiceActive : ""}`} onClick={() => setVisualLayout(choice.id)}>
+                      <span>{choice.title}</span><small>{choice.description}</small>
+                    </button>)}
+                  </div>
+                </div>
+                <div className={styles.structureSummary} role="status"><strong>{currentGroups.length || 1} page{(currentGroups.length || 1) > 1 ? "s" : ""} de BAT seront produite{(currentGroups.length || 1) > 1 ? "s" : ""}</strong><span>{visualLayout === "recto_verso_compact" ? "Deux modèles maximum par page." : visualLayout === "recto_verso" ? "Une paire recto-verso par page." : "Une page source par présentation."}</span></div>
+                {currentGroups.length > 1 && (
                   <div className={styles.variantSection}>
-                    <div><strong>Informations variables par BAT</strong><p>Les champs généraux restent hérités du formulaire principal. Renseignez seulement les différences de matière, format, quantité ou produit.</p></div>
-                    {groupVisualSelections(getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage), visualLayout).map((group, index) => (
+                    <div className={styles.variantHeader}><div><strong>Informations variables par BAT</strong><p>Les champs généraux restent hérités du formulaire principal. Renseignez seulement les différences de matière, format, quantité ou produit.</p></div><div className={styles.variantActions}><button type="button" className="secondary-button" onClick={applyGlobalFieldsToVariants}>Utiliser les infos générales</button><button type="button" className="secondary-button" onClick={() => copyVariantToAll(0)} disabled={currentGroups.length < 2}>Copier BAT 1 vers tous</button></div></div>
+                    {currentGroups.map((group, index) => (
                       <details className={styles.variantCard} key={`variant-${index}`} open={index === 0}>
-                        <summary>BAT {index + 1} · {describeVisualGroup(group, sources)}</summary>
+                        <summary><span>BAT {index + 1} · {describeVisualGroup(group, sources)}</span><small className={variantStatus(index).startsWith("Prête") ? styles.variantReady : styles.variantIncomplete}>{variantStatus(index)}</small></summary>
                         <div className={styles.variantGrid}>
                           {variantFieldDefinitions.map(([key, label]) => (
                             <label key={key} className={key === "remarks" ? styles.wide : undefined}>{label}
