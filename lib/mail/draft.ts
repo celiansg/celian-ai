@@ -9,6 +9,8 @@ export const mailKinds = [
 
 export type MailKind = (typeof mailKinds)[number][0];
 
+const batApprovalRequest = "Avant le lancement en production, merci de nous retourner le BAT daté, signé et accompagné de la mention « Bon pour accord ».";
+
 type LocalMailInput = {
   kind: MailKind;
   order: string;
@@ -38,9 +40,14 @@ export function createMailDraft({ kind, order, product, request, signature }: Lo
     free: "",
   };
 
+  const requestedBody = request.trim() || defaultBody[kind];
+  const body = ["bat", "bat-revision"].includes(kind) && !/bon pour accord/i.test(requestedBody)
+    ? `${requestedBody}\n\n${batApprovalRequest}`
+    : requestedBody;
+
   return {
     subject: [title[kind], detail].filter(Boolean).join(" — "),
-    body: ["Bonjour,", request.trim() || defaultBody[kind], ["Bien cordialement,", signature.trim()].filter(Boolean).join("\n")]
+    body: ["Bonjour,", body, ["Cordialement,", signature.trim()].filter(Boolean).join("\n")]
       .filter(Boolean).join("\n\n"),
   };
 }
