@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSearch, Info, XCircle } from "lucide-react";
 import { preflightPdf, preflightProfiles, preflightStatusLabel, type PreflightProfile, type PreflightReport } from "@/lib/bat/preflight";
 import { generatePreflightReportPdf } from "@/lib/bat/report";
@@ -18,20 +18,26 @@ function statusClass(status: PreflightReport["status"]) {
   return status === "pass" ? "preflight-status pass" : status === "warning" ? "preflight-status warning" : "preflight-status fail";
 }
 
-export function PreflightPanel() {
+export function PreflightPanel({ file }: { file?: File }) {
   const [profileId, setProfileId] = useState("generic");
   const [report, setReport] = useState<PreflightReport | null>(null);
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function analyze(file: File) {
+  useEffect(() => {
+    setReport(null);
+    setFileName(file?.name ?? "");
+    setError("");
+  }, [file]);
+
+  async function analyze(fileToAnalyze: File) {
     setBusy(true);
     setError("");
-    setFileName(file.name);
+    setFileName(fileToAnalyze.name);
     try {
       const profile: PreflightProfile = preflightProfiles[profileId] ?? preflightProfiles.generic;
-      setReport(await preflightPdf(new Uint8Array(await file.arrayBuffer()), profile));
+      setReport(await preflightPdf(new Uint8Array(await fileToAnalyze.arrayBuffer()), profile));
     } catch {
       setReport(null);
       setError("Ce PDF n’a pas pu être analysé. Vérifiez le format, la taille et la protection du fichier.");
@@ -69,7 +75,9 @@ export function PreflightPanel() {
       </div>
       <div className="preflight-controls">
         <label>Profil<select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={busy}><option value="generic">{preflightProfiles.generic.label}</option><option value="a4Landscape">{preflightProfiles.a4Landscape.label}</option><option value="a4Portrait">{preflightProfiles.a4Portrait.label}</option><option value="digitalPrint">{preflightProfiles.digitalPrint.label}</option></select></label>
-        <div className="preflight-file"><PdfDropzone label="Choisir le PDF à contrôler" hint="25 Mo maximum · le fichier original ne sera pas modifié" disabled={busy} onFile={(file) => void analyze(file)} /></div>
+        <div className="preflight-file">{file
+          ? <button type="button" className="primary-button" disabled={busy} onClick={() => void analyze(file)}>{busy ? "Analyse en cours…" : "Analyser ce PDF"}</button>
+          : <PdfDropzone label="Choisir le PDF à contrôler" hint="25 Mo maximum · le fichier original ne sera pas modifié" disabled={busy} onFile={(nextFile) => void analyze(nextFile)} />}</div>
       </div>
       {busy && <p className="preflight-feedback" role="status">Analyse sécurisée du PDF en cours…</p>}
       {error && <p className="preflight-feedback error" role="alert">{error}</p>}

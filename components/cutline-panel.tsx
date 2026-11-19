@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Download, Scissors } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PdfDropzone } from "@/components/pdf-dropzone";
 import { addCutlineToPdf, type CutlineMode, type CutlineResult } from "@/lib/bat/cutline";
 
@@ -10,7 +10,7 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export function CutlinePanel() {
+export function CutlinePanel({ file }: { file?: File }) {
   const [mode, setMode] = useState<CutlineMode>("trim");
   const [width, setWidth] = useState("100");
   const [height, setHeight] = useState("100");
@@ -22,6 +22,11 @@ export function CutlinePanel() {
   const [result, setResult] = useState<CutlineResult | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setResult(null);
+    setFileName(file?.name ?? "");
+  }, [file]);
 
   async function createCutline(file: File) {
     setBusy(true);
@@ -102,7 +107,9 @@ export function CutlinePanel() {
         <input inputMode="numeric" type="number" min="1" step="1" value={page} onChange={(event) => setPage(event.target.value)} />
       </label>}
       <div className="cutline-file">
-        <PdfDropzone label={busy ? "Création du tracé…" : "Choisir le PDF à préparer"} hint="PDF · 25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={createCutline} />
+        {file
+          ? <button type="button" className="primary-button" disabled={busy} onClick={() => void createCutline(file)}>{busy ? "Création du tracé…" : "Créer le tracé"}</button>
+          : <PdfDropzone label={busy ? "Création du tracé…" : "Choisir le PDF à préparer"} hint="PDF · 25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={createCutline} />}
       </div>
     </div>
     {error && <p className="cutline-feedback error" role="alert">{error}</p>}

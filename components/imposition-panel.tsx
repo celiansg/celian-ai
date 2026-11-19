@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Columns3, Download, Layers3 } from "lucide-react";
 import { imposePdf, type ImpositionMode } from "@/lib/bat/imposition";
 import { PdfDropzone } from "@/components/pdf-dropzone";
 
 type Result = Awaited<ReturnType<typeof imposePdf>>;
 
-export function ImpositionPanel() {
+export function ImpositionPanel({ file }: { file?: File }) {
   const [mode, setMode] = useState<ImpositionMode>("n_up");
   const [sheet, setSheet] = useState("a4");
   const [columns, setColumns] = useState("2");
@@ -19,6 +19,11 @@ export function ImpositionPanel() {
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [result, setResult] = useState<Result | null>(null);
+
+  useEffect(() => {
+    setResult(null);
+    setFileName(file?.name ?? "");
+  }, [file]);
 
   async function create(file: File) {
     setBusy(true); setError(""); setFileName(file.name); setResult(null);
@@ -47,7 +52,9 @@ export function ImpositionPanel() {
       <label>Blanc entre poses (mm)<input type="number" min="0" max="100" step="0.5" value={gutter} onChange={(event) => setGutter(event.target.value)} disabled={busy} /></label>
       <label>Marge (mm)<input type="number" min="0" max="100" step="0.5" value={margin} onChange={(event) => setMargin(event.target.value)} disabled={busy} /></label>
       {mode === "step_repeat" && <label>Page à répéter<input type="number" min="1" max="50" value={sourcePage} onChange={(event) => setSourcePage(event.target.value)} disabled={busy} /></label>}
-      <div className="imposition-file"><PdfDropzone label="Choisir le PDF à mettre en page" hint="25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={(file) => void create(file)} /></div>
+      <div className="imposition-file">{file
+        ? <button type="button" className="primary-button" disabled={busy} onClick={() => void create(file)}>{busy ? "Création en cours…" : "Créer l’imposition"}</button>
+        : <PdfDropzone label="Choisir le PDF à mettre en page" hint="25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={(nextFile) => void create(nextFile)} />}</div>
     </div>
     {busy && <p className="imposition-feedback" role="status">Création de l’imposition…</p>}
     {error && <p className="imposition-feedback error" role="alert">{error}</p>}

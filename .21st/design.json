@@ -29,6 +29,7 @@
     "Conserver la structure claire du workspace Agents et réserver les accents colorés aux agents et aux états.",
     "Utiliser une zone de dépôt inspirée du composant 21st.dev File Dropzone (id 19201), adaptée aux primitives existantes et au stockage local.",
     "Privilégier des panneaux professionnels, des bordures discrètes, un contraste lisible et une animation minimale respectant reduced-motion.",
-    "Ne pas présenter le template BAT officiel tant que les octets originaux n'ont pas été fournis au projet."
+    "Ne pas présenter le template BAT officiel tant que les octets originaux n'ont pas été fournis au projet.",
+    "Pour @Prod, ouvrir le PDF une seule fois dans un viewer central type Acrobat et regrouper les contrôles prépresse dans un rail d’actions latéral ; le même fichier est réutilisé pour le BAT officiel."
   ]
 }

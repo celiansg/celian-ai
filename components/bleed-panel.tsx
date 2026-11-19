@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Download, Maximize2 } from "lucide-react";
 import { addBleedToPdf, type BleedMethod } from "@/lib/bat/bleed";
 import { PdfDropzone } from "@/components/pdf-dropzone";
 
-export function BleedPanel() {
+export function BleedPanel({ file }: { file?: File }) {
   const [bleedMm, setBleedMm] = useState("3");
   const [dpi, setDpi] = useState<"150" | "300">("300");
   const [method, setMethod] = useState<BleedMethod>("edge_repeat");
@@ -14,6 +14,8 @@ export function BleedPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ name: string; bytes: Uint8Array; pageCount: number; warning: string } | null>(null);
+
+  useEffect(() => setResult(null), [file]);
 
   async function generate(file: File) {
     setBusy(true); setError(""); setResult(null);
@@ -42,7 +44,9 @@ export function BleedPanel() {
             <label>Méthode<select value={method} onChange={(event) => setMethod(event.target.value as BleedMethod)} disabled={busy}><option value="edge_repeat">Répéter le dernier pixel</option><option value="edge_stretch">Étirer le bord</option><option value="mirror">Effet miroir</option><option value="blank">Zone blanche</option></select></label>
         <label>Pages<select value={allPages ? "all" : "one"} onChange={(event) => setAllPages(event.target.value === "all")} disabled={busy}><option value="all">Toutes les pages</option><option value="one">Une page</option></select></label>
         {!allPages && <label>Numéro<input type="number" min="1" value={page} onChange={(event) => setPage(event.target.value)} disabled={busy} /></label>}
-        <div className="bleed-file"><PdfDropzone label="Choisir le PDF à préparer" hint="15 Mo maximum · une nouvelle copie sera créée" disabled={busy} onFile={(file) => void generate(file)} /></div>
+        <div className="bleed-file">{file
+          ? <button type="button" className="primary-button" disabled={busy} onClick={() => void generate(file)}>{busy ? "Préparation en cours…" : "Ajouter le fond perdu"}</button>
+          : <PdfDropzone label="Choisir le PDF à préparer" hint="15 Mo maximum · une nouvelle copie sera créée" disabled={busy} onFile={(nextFile) => void generate(nextFile)} />}</div>
       </div>
       {busy && <p className="bleed-feedback" role="status">Rasterisation à {dpi} DPI en cours…</p>}
       {error && <p className="bleed-feedback error" role="alert">{error}</p>}

@@ -19,6 +19,13 @@ import styles from "./bat-workspace.module.css";
 type Source = { id: string; name: string; document: PDFDocument };
 type Draft = { name: string; blob: Blob; savedId?: string };
 
+async function openSourceFiles(files: File[]) {
+  const { openBatVisual } = await import("@/lib/bat/visual");
+  const loaded: Source[] = [];
+  for (const file of files) loaded.push({ id: crypto.randomUUID(), name: file.name, document: await openBatVisual(file) });
+  return loaded;
+}
+
 function DraftPreview({ draft }: { draft: Draft }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -39,7 +46,7 @@ function DraftPreview({ draft }: { draft: Draft }) {
   );
 }
 
-export function BatWorkspace({ available, version, initialProjectId }: { available: boolean; version: string; initialProjectId?: string }) {
+export function BatWorkspace({ available, version, initialProjectId, initialSourceFile }: { available: boolean; version: string; initialProjectId?: string; initialSourceFile?: File }) {
   const [files, setFiles] = useState<LocalFileMetadata[]>([]);
   const [projects, setProjects] = useState<LocalProject[]>([]);
   const [projectId, setProjectId] = useState("");
@@ -58,6 +65,7 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [assistantApplied, setAssistantApplied] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const initialSourceLoaded = useRef<File | undefined>(undefined);
 
   useEffect(() => {
     let current = true;
@@ -106,9 +114,7 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
     setError("");
     try {
       const files = await getFiles();
-      const { openBatVisual } = await import("@/lib/bat/visual");
-      const loaded: Source[] = [];
-      for (const file of files) loaded.push({ id: crypto.randomUUID(), name: file.name, document: await openBatVisual(file) });
+      const loaded = await openSourceFiles(files);
       setSources((items) => [...items, ...loaded]);
     } catch {
       setError("Un des PDF n’a pas pu être ouvert. Choisissez des fichiers non protégés de 15 Mo maximum et de 1 à 50 pages.");
@@ -116,6 +122,12 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
       setBusy(null);
     }
   }
+
+  useEffect(() => {
+    if (!initialSourceFile || initialSourceLoaded.current === initialSourceFile) return;
+    initialSourceLoaded.current = initialSourceFile;
+    void loadSources(async () => [initialSourceFile]);
+  }, [initialSourceFile]);
 
   async function runAssistant() {
     if (assistantBusy || assistantText.trim().length < 10) {
