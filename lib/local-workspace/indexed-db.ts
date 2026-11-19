@@ -149,6 +149,13 @@ export async function listLocalAgentRuns() {
   return runs.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function updateLocalAgentRun(id: string, input: Partial<Pick<LocalAgentRun, "status" | "answer" | "events" | "pendingAction">>) {
+  const runs = await listLocalAgentRuns();
+  const run = runs.find((item) => item.id === id);
+  if (!run) throw new Error("Exécution introuvable.");
+  return put(AGENT_RUNS_STORE, { ...run, ...input });
+}
+
 async function remove(storeName: string, id: string) {
   const database = await openDatabase();
   try {
