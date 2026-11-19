@@ -40,7 +40,6 @@ type StagedFile = {
 };
 
 const ACCEPTED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "svg", "docx", "xlsx", "txt", "zip"];
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 function getExtension(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
@@ -245,10 +244,6 @@ export function AgentWorkspace({ agent, availableProviders }: { agent: AgentDefi
       const extension = getExtension(file.name);
       if (!ACCEPTED_EXTENSIONS.includes(extension)) {
         setAttachmentError(`${file.name} n’est pas un format pris en charge.`);
-        continue;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        setAttachmentError(`${file.name} dépasse la limite de 25 Mo.`);
         continue;
       }
       accepted.push({

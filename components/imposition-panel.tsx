@@ -54,7 +54,7 @@ export function ImpositionPanel({ file }: { file?: File }) {
       {mode === "step_repeat" && <label>Page à répéter<input type="number" min="1" max="50" value={sourcePage} onChange={(event) => setSourcePage(event.target.value)} disabled={busy} /></label>}
       <div className="imposition-file">{file
         ? <button type="button" className="primary-button" disabled={busy} onClick={() => void create(file)}>{busy ? "Création en cours…" : "Créer l’imposition"}</button>
-        : <PdfDropzone label="Choisir le PDF à mettre en page" hint="25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={(nextFile) => void create(nextFile)} />}</div>
+        : <PdfDropzone label="Choisir le PDF à mettre en page" hint="Toutes les pages · le contenu reste vectoriel" disabled={busy} onFile={(nextFile) => void create(nextFile)} />}</div>
     </div>
     {busy && <p className="imposition-feedback" role="status">Création de l’imposition…</p>}
     {error && <p className="imposition-feedback error" role="alert">{error}</p>}

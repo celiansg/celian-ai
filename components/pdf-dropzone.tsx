@@ -9,11 +9,10 @@ type PdfDropzoneProps = {
   label: string;
   hint: string;
   disabled?: boolean;
-  maxBytes?: number;
   multiple?: boolean;
 };
 
-export function PdfDropzone({ onFile, onFiles, label, hint, disabled = false, maxBytes = 25 * 1024 * 1024, multiple = false }: PdfDropzoneProps) {
+export function PdfDropzone({ onFile, onFiles, label, hint, disabled = false, multiple = false }: PdfDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +23,6 @@ export function PdfDropzone({ onFile, onFiles, label, hint, disabled = false, ma
     for (const file of selected) {
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
       if (!isPdf) { setError(`${file.name} n’est pas un PDF.`); continue; }
-      if (file.size > maxBytes) { setError(`${file.name} dépasse la limite de ${Math.round(maxBytes / (1024 * 1024))} Mo.`); continue; }
       valid.push(file);
     }
     if (!valid.length) return;

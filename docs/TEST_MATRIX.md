@@ -43,7 +43,7 @@ Le parcours import réel par sélection de fichier, rechargement, preview et sup
 | Recharger la page | e2e | fichier retrouvé depuis IndexedDB |
 | Ouvrir un PDF | UI | pages rendues, pagination et zoom visibles |
 | Déposer un type non supporté | UI | erreur lisible, aucune entrée persistée |
-| Dépasser 25 Mo | UI | erreur lisible, aucun fichier stocké |
+| Importer un fichier volumineux | UI | le fichier n’est pas rejeté par une limite applicative ; les erreurs natives de stockage ou de mémoire restent affichées |
 | Supprimer | UI | confirmation puis suppression réelle |
 | Source multipage | UI | page sélectionnable, navigation contrôlée |
 | Erreur IndexedDB | intégration | état erreur, aucune fausse réussite |

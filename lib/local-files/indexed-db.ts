@@ -5,8 +5,6 @@ const DATABASE_NAME = "agents-local-workspace";
 const DATABASE_VERSION = 2;
 const FILE_STORE = "files";
 const BAT_REVISIONS = "batRevisions";
-export const LOCAL_FILE_MAX_SIZE = 25 * 1024 * 1024;
-
 export const LOCAL_FILE_ACCEPT = [".pdf", ".png", ".jpg", ".jpeg", ".svg", ".docx", ".xlsx", ".txt", ".zip"] as const;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -46,7 +44,6 @@ export function validateLocalFile(file: File): LocalFileValidation {
   const typeAccepted = Boolean(expectedMime) && (!file.type || file.type === expectedMime || (extension === "jpg" && file.type === "image/jpeg") || (extension === "jpeg" && file.type === "image/jpeg"));
   if (!typeAccepted) return { accepted: false, message: `${file.name} n’est pas un format supporté.` };
   if (file.size === 0) return { accepted: false, message: `${file.name} est vide.` };
-  if (file.size > LOCAL_FILE_MAX_SIZE) return { accepted: false, message: `${file.name} dépasse la limite de 25 Mo.` };
   return { accepted: true };
 }
 
@@ -94,7 +91,7 @@ export async function saveLocalBat(
     projectId?: string; order: string; company: string; product?: string; templateVersion: string;
   },
 ): Promise<LocalFileMetadata> {
-  if (!blob.size || blob.size > LOCAL_FILE_MAX_SIZE) throw new Error("Le brouillon dépasse la capacité d’un fichier local.");
+  if (!blob.size) throw new Error("Le brouillon est vide.");
   const now = new Date();
   const date = now.toISOString();
   const series = JSON.stringify([projectId ?? "", order.trim().normalize("NFC").toLocaleLowerCase("fr"),

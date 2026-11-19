@@ -2,15 +2,11 @@
 
 import { useRef, useState } from "react";
 import { AlertCircle, FileText, Upload } from "lucide-react";
-import { LOCAL_FILE_ACCEPT, LOCAL_FILE_MAX_SIZE, formatFileSize, validateLocalFile } from "@/lib/local-files/indexed-db";
+import { LOCAL_FILE_ACCEPT, formatFileSize, validateLocalFile } from "@/lib/local-files/indexed-db";
 
 type FileDropzoneProps = {
   onUpload: (file: File) => Promise<void>;
 };
-
-function formatMaxSize() {
-  return `${Math.round(LOCAL_FILE_MAX_SIZE / 1024 / 1024)} Mo max.`;
-}
 
 /**
  * Adapted from the 21st.dev File Dropzone (demo id 19201).
@@ -60,7 +56,7 @@ export function FileDropzone({ onUpload }: FileDropzoneProps) {
         <input ref={inputRef} className="sr-only" type="file" multiple accept={LOCAL_FILE_ACCEPT.join(",")} aria-label="Sélectionner des fichiers à stocker localement" onChange={(event) => void processFiles(Array.from(event.target.files ?? []))} />
         <span className="file-dropzone-icon" aria-hidden="true"><Upload size={20} /></span>
         <strong>{busy ? "Stockage local en cours…" : "Déposez vos fichiers ici"}</strong>
-        <span>PDF, images, documents et archives · {formatMaxSize()}</span>
+        <span>PDF, images, documents et archives · aucune limite de taille imposée par l’interface</span>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => inputRef.current?.click()}><Upload size={15} aria-hidden="true" /> Parcourir les fichiers</button>
       </div>
       {error ? <div className="file-feedback error" role="alert"><AlertCircle size={15} aria-hidden="true" />{error}</div> : null}

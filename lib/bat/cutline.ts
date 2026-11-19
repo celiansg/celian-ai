@@ -40,9 +40,6 @@ export type CutlineResult = {
   warning: string;
 };
 
-const MAX_BYTES = 25 * 1024 * 1024;
-const MAX_PAGES = 50;
-
 function cleanSpotName(value: string) {
   const name = value.trim();
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(name)) throw new Error("Le nom du ton direct doit contenir 1 à 64 caractères : lettres, chiffres, point, tiret ou underscore.");
@@ -122,14 +119,12 @@ function drawCutline(page: PDFPage, placementData: CutlinePlacement, lineWidthPt
 }
 
 export async function addCutlineToPdf(bytes: Uint8Array, options: CutlineOptions): Promise<CutlineResult> {
-  if (bytes.byteLength > MAX_BYTES) throw new Error("Le PDF dépasse la limite de 25 Mo.");
   const spotName = cleanSpotName(options.spotName);
   if (!Number.isFinite(options.lineWidthPt) || options.lineWidthPt <= 0 || options.lineWidthPt > 20) throw new Error("L’épaisseur du tracé doit être comprise entre 0,01 et 20 pt.");
   if (options.mode === "custom") { positive(options.widthMm, "La largeur"); positive(options.heightMm, "La hauteur"); }
   const document = await PDFDocument.load(bytes, { updateMetadata: false });
   const pageCount = document.getPageCount();
   if (pageCount < 1) throw new Error("Le PDF ne contient aucune page.");
-  if (pageCount > MAX_PAGES) throw new Error("Le PDF dépasse la limite de 50 pages pour cette opération.");
   const indexes = options.pages === "all" ? Array.from({ length: pageCount }, (_, index) => index) : [options.pages - 1];
   if (indexes.some((index) => index < 0 || index >= pageCount)) throw new Error("Le numéro de page demandé n’existe pas.");
   const placements: CutlinePlacement[] = [];

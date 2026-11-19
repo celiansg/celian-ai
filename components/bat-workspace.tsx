@@ -117,7 +117,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       const loaded = await openSourceFiles(files);
       setSources((items) => [...items, ...loaded]);
     } catch {
-      setError("Un des PDF n’a pas pu être ouvert. Choisissez des fichiers non protégés de 15 Mo maximum et de 1 à 50 pages.");
+      setError("Un des PDF n’a pas pu être ouvert. Vérifiez qu’il n’est pas protégé ou corrompu.");
     } finally {
       setBusy(null);
     }
@@ -288,7 +288,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                 </select>
               </label>
             )}
-            <div className={styles.wide}><PdfDropzone label="Ajouter un ou plusieurs PDF client" hint="Jusqu’à 15 Mo par fichier · les pages seront conservées dans l’ordre" maxBytes={15 * 1024 * 1024} multiple disabled={Boolean(busy) || !available} onFile={(file) => void loadSources(async () => [file])} onFiles={(files) => void loadSources(async () => files)} /></div>
+            <div className={styles.wide}><PdfDropzone label="Ajouter un ou plusieurs PDF client" hint="Toutes les pages seront conservées dans l’ordre" multiple disabled={Boolean(busy) || !available} onFile={(file) => void loadSources(async () => [file])} onFiles={(files) => void loadSources(async () => files)} /></div>
             {libraryUnavailable && <p className={styles.wide}>La bibliothèque locale est indisponible. Vous pouvez choisir un fichier sur cet appareil.</p>}
             {sources.length > 0 && (
               <div className={styles.wide}>

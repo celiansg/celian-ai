@@ -1,21 +1,14 @@
 import { degrees, PDFArray, PDFDocument, PDFName, type PDFPage } from "pdf-lib";
 import { batVisualZone } from "./visual-mapping.ts";
 
-const maximumBytes = 15 * 1024 * 1024;
-const maximumPages = 50;
-
 export async function openBatVisual(file: File) {
-  if (!file.name.toLowerCase().endsWith(".pdf") || file.size > maximumBytes) {
-    throw new Error("Sélectionnez un PDF de 15 Mo maximum.");
-  }
+  if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error("Sélectionnez un fichier PDF.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") {
     throw new Error("Le fichier sélectionné ne contient pas de PDF valide.");
   }
   const document = await PDFDocument.load(bytes);
-  if (document.getPageCount() < 1 || document.getPageCount() > maximumPages) {
-    throw new Error("Le PDF doit contenir entre 1 et 50 pages.");
-  }
+  if (document.getPageCount() < 1) throw new Error("Le PDF ne contient aucune page.");
   return document;
 }
 
@@ -60,10 +53,9 @@ export async function placeBatVisuals(
   selections: { sourceIndex: number; page: number }[],
 ) {
   if (!sources.length || !selections.length) throw new Error("Sélectionnez au moins un visuel PDF.");
-  if (sources.length > maximumPages || selections.length > maximumPages) throw new Error("La préparation est limitée à 50 visuels par BAT.");
   for (const source of sources) {
     const sourceCount = source.getPageCount();
-    if (sourceCount < 1 || sourceCount > maximumPages) throw new Error("Chaque PDF doit contenir entre 1 et 50 pages.");
+    if (sourceCount < 1) throw new Error("Un PDF ne contient aucune page.");
   }
   if (selections.some(({ sourceIndex, page }) => sourceIndex < 0 || sourceIndex >= sources.length
     || !Number.isInteger(page) || page < 1 || page > sources[sourceIndex].getPageCount())) {

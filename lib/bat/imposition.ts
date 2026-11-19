@@ -25,9 +25,6 @@ export type ImpositionResult = {
   warning: string;
 };
 
-const MAX_BYTES = 25 * 1024 * 1024;
-const MAX_PAGES = 50;
-
 function validate(options: ImpositionOptions) {
   if (![options.sheetWidthMm, options.sheetHeightMm, options.gutterMm, options.marginMm].every(Number.isFinite)) throw new Error("Les dimensions d’imposition sont invalides.");
   if (options.sheetWidthMm <= 0 || options.sheetHeightMm <= 0 || options.sheetWidthMm > 1000 || options.sheetHeightMm > 1000) throw new Error("La feuille doit mesurer entre 0,1 et 1 000 mm.");
@@ -47,12 +44,10 @@ function fit(source: PDFPage, cellWidth: number, cellHeight: number) {
 }
 
 export async function imposePdf(bytes: Uint8Array, options: ImpositionOptions): Promise<ImpositionResult> {
-  if (bytes.byteLength > MAX_BYTES) throw new Error("Le PDF dépasse la limite de 25 Mo.");
   validate(options);
   const source = await PDFDocument.load(bytes, { updateMetadata: false });
   const pageCount = source.getPageCount();
   if (pageCount < 1) throw new Error("Le PDF ne contient aucune page.");
-  if (pageCount > MAX_PAGES) throw new Error("Le PDF dépasse la limite de 50 pages pour cette opération.");
   const selected = options.mode === "step_repeat"
     ? [Math.min(Math.max((options.sourcePage ?? 1) - 1, 0), pageCount - 1)]
     : Array.from({ length: pageCount }, (_, index) => index);

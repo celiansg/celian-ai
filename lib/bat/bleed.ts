@@ -4,7 +4,6 @@ export type BleedMethod = "edge_repeat" | "edge_stretch" | "mirror" | "blank";
 export type BleedOptions = { bleedMm: number; dpi: 150 | 300; method: BleedMethod; pages: "all" | number };
 export type BleedResult = { bytes: Uint8Array; pageCount: number; bleedMm: number; dpi: number; method: BleedMethod; rasterized: true; warning: string };
 
-const maxInputBytes = 15 * 1024 * 1024;
 const maxBleedMm = 20;
 const pointsPerMm = 72 / 25.4;
 
@@ -74,7 +73,7 @@ function canvasToPng(canvas: HTMLCanvasElement) {
 }
 
 export async function addBleedToPdf(file: File, options: BleedOptions): Promise<BleedResult> {
-  if (!file.name.toLowerCase().endsWith(".pdf") || file.size > maxInputBytes) throw new Error("Sélectionnez un PDF de 15 Mo maximum.");
+  if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error("Sélectionnez un fichier PDF.");
   if (!Number.isFinite(options.bleedMm) || options.bleedMm <= 0 || options.bleedMm > maxBleedMm) throw new Error(`Le fond perdu doit être compris entre 0,1 et ${maxBleedMm} mm.`);
   if (![150, 300].includes(options.dpi)) throw new Error("La résolution doit être de 150 ou 300 DPI.");
   if (options.pages !== "all" && (!Number.isInteger(options.pages) || options.pages < 1)) throw new Error("La page sélectionnée est invalide.");
@@ -97,7 +96,6 @@ export async function addBleedToPdf(file: File, options: BleedOptions): Promise<
       const width = Math.ceil(viewport.width);
       const height = Math.ceil(viewport.height);
       const bleedPx = Math.ceil(mmToPoints(options.bleedMm) * scale);
-      if ((width + bleedPx * 2) * (height + bleedPx * 2) > 18_000_000) throw new Error(`La page ${pageNumber} dépasse la limite de pixels de sécurité à ${options.dpi} DPI.`);
       const sourceCanvas = document.createElement("canvas");
       sourceCanvas.width = width; sourceCanvas.height = height;
       const sourceContext = sourceCanvas.getContext("2d", { alpha: false });

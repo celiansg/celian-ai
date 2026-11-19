@@ -109,7 +109,7 @@ export function CutlinePanel({ file }: { file?: File }) {
       <div className="cutline-file">
         {file
           ? <button type="button" className="primary-button" disabled={busy} onClick={() => void createCutline(file)}>{busy ? "Création du tracé…" : "Créer le tracé"}</button>
-          : <PdfDropzone label={busy ? "Création du tracé…" : "Choisir le PDF à préparer"} hint="PDF · 25 Mo maximum · le contenu reste vectoriel" disabled={busy} onFile={createCutline} />}
+          : <PdfDropzone label={busy ? "Création du tracé…" : "Choisir le PDF à préparer"} hint="PDF · toutes les pages · le contenu reste vectoriel" disabled={busy} onFile={createCutline} />}
       </div>
     </div>
     {error && <p className="cutline-feedback error" role="alert">{error}</p>}

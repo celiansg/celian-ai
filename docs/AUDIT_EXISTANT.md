@@ -29,7 +29,7 @@ Le cahier des charges maître a été lu intégralement depuis le fichier fourni
 | `lib/firebase/client.ts`, `auth.ts` | Firebase client, Google et magic link | Partiel | Firebase optionnel ; pas de protection globale des routes ; URL magic link localhost | Choisir/documenter local-first, puis auth explicite |
 | `lib/firebase/data.ts` | Projects/tasks/activity Firestore | Partiel | Pas de list/create tasks, pas d’ownership serveur pour API | Adapters avec session et règles cohérentes |
 | `lib/firebase/storage.ts` | Upload Firebase Storage, MIME/taille côté client | Partiel | Spark interdit Storage sur nouveaux projets ; path inclut nom brut ; pas de hash/signature | Phase 1 local-first, cloud opt-in après sécurité |
-| `firestore.rules`, `storage.rules` | Règles d’ownership et limite 25 Mo | Base utile | Schéma et services ne sont pas utilisés par les routes IA | Tester règles et ne pas contourner par route serveur |
+| `firestore.rules`, `storage.rules` | Règles d’ownership et contrôle MIME | Base utile | Schéma et services ne sont pas utilisés par les routes IA | Tester règles et ne pas contourner par route serveur |
 | `supabase/schema.sql` | Schéma riche et RLS | Non utilisé | Double stratégie Firebase/Supabase | Conserver comme historique, choisir Firebase/local-first et documenter |
 | `public/avatars`, `public/agents`, PWA | Avatars/logo/manifeste/service worker | Fonctionnel statique | Duplication agents/avatars | Centraliser les références sans casser les URLs |
 | `knowledge/templates/BAT template(1).pdf` | Modèle officiel fourni, A4 paysage, 1 page, PDF/X-4, sans formulaire | Source vérifiée | Mapping de champs non créé | Mesurer les zones, créer un profil versionné et produire uniquement des copies contrôlées |

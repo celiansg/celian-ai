@@ -18,7 +18,7 @@
 ## 2026-11-17 — Phase 1, tranche fichiers local-first
 
 - Ajout d’une bibliothèque locale réellement persistante via IndexedDB.
-- Validation des extensions/MIME et d’une taille maximale de 25 Mo avant écriture.
+- Validation des extensions/MIME avant écriture ; aucune limite de taille applicative n’est imposée par l’interface.
 - Ajout du dépôt par sélection ou glisser-déposer, inspiré du composant 21st.dev File Dropzone (id 19201) et adapté au design Agents.
 - Ajout de la liste des fichiers, metadata, suppression confirmée et états loading/empty/error.
 - Ajout de la preview PDF multi-page avec pagination, zoom et worker PDF.js servi localement.

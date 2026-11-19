@@ -77,7 +77,7 @@ export function PreflightPanel({ file }: { file?: File }) {
         <label>Profil<select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={busy}><option value="generic">{preflightProfiles.generic.label}</option><option value="a4Landscape">{preflightProfiles.a4Landscape.label}</option><option value="a4Portrait">{preflightProfiles.a4Portrait.label}</option><option value="digitalPrint">{preflightProfiles.digitalPrint.label}</option></select></label>
         <div className="preflight-file">{file
           ? <button type="button" className="primary-button" disabled={busy} onClick={() => void analyze(file)}>{busy ? "Analyse en cours…" : "Analyser ce PDF"}</button>
-          : <PdfDropzone label="Choisir le PDF à contrôler" hint="25 Mo maximum · le fichier original ne sera pas modifié" disabled={busy} onFile={(nextFile) => void analyze(nextFile)} />}</div>
+          : <PdfDropzone label="Choisir le PDF à contrôler" hint="Le fichier original ne sera pas modifié · toutes les pages sont analysées" disabled={busy} onFile={(nextFile) => void analyze(nextFile)} />}</div>
       </div>
       {busy && <p className="preflight-feedback" role="status">Analyse sécurisée du PDF en cours…</p>}
       {error && <p className="preflight-feedback error" role="alert">{error}</p>}

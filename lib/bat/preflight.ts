@@ -23,7 +23,6 @@ export type PreflightProfile = {
   label: string;
   expectedTrim?: { widthMm: number; heightMm: number; toleranceMm: number };
   requiredBleedMm: number;
-  maxPages: number;
   minImageDpi?: number;
   requireEmbeddedFonts?: boolean;
   allowedColorSpaces?: string[];
@@ -86,36 +85,27 @@ export const preflightProfiles: Record<string, PreflightProfile> = {
     id: "generic",
     label: "Contrôle général PDF",
     requiredBleedMm: 0,
-    maxPages: 50,
   },
   a4Landscape: {
     id: "a4-landscape",
     label: "Impression A4 paysage · fond perdu 3 mm",
     expectedTrim: { widthMm: 297, heightMm: 210, toleranceMm: 0.5 },
     requiredBleedMm: 3,
-    maxPages: 50,
   },
   a4Portrait: {
     id: "a4-portrait",
     label: "Impression A4 portrait · fond perdu 3 mm",
     expectedTrim: { widthMm: 210, heightMm: 297, toleranceMm: 0.5 },
     requiredBleedMm: 3,
-    maxPages: 50,
   },
   digitalPrint: {
     id: "digital-print",
     label: "Impression numérique · ressources à vérifier",
     requiredBleedMm: 3,
-    maxPages: 50,
     minImageDpi: 300,
     requireEmbeddedFonts: true,
     allowedColorSpaces: ["DeviceCMYK", "DeviceRGB", "DeviceGray", "ICCBased"],
   },
-};
-
-export const preflightLimits = {
-  maxBytes: 25 * 1024 * 1024,
-  maxPages: 50,
 };
 
 const POINTS_PER_MM = 72 / 25.4;
@@ -302,14 +292,6 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
       summary: { info: 0, warning: 0, error: 1, unsupported: 0 },
     };
   }
-  if (bytes.byteLength > preflightLimits.maxBytes) {
-    return {
-      version: "1", status: "fail", profile, file: { bytes: bytes.byteLength, pages: 0, encrypted: false }, pages: [],
-      issues: [{ code: "FILE_TOO_LARGE", severity: "error", message: "Le fichier dépasse la limite de 25 Mo.", proof: `${bytes.byteLength} octets`, method: "Contrôle de taille avant parsing." }],
-      summary: { info: 0, warning: 0, error: 1, unsupported: 0 },
-    };
-  }
-
   let document: PDFDocument;
   try {
     document = await PDFDocument.load(bytes, { updateMetadata: false });
@@ -326,10 +308,8 @@ export async function preflightPdf(bytes: Uint8Array, profile: PreflightProfile 
   const encrypted = document.isEncrypted;
   if (encrypted) issues.push({ code: "PDF_ENCRYPTED", severity: "error", message: "Le PDF est chiffré et ne peut pas être contrôlé de manière fiable.", proof: "PDFDocument.isEncrypted=true", method: "Lecture de l’état de chiffrement du document." });
   if (pageCount < 1) issues.push({ code: "PAGE_COUNT_EMPTY", severity: "error", message: "Le PDF ne contient aucune page.", proof: "pageCount=0", method: "Lecture du nombre de pages." });
-  if (pageCount > Math.min(profile.maxPages, preflightLimits.maxPages)) issues.push({ code: "PAGE_COUNT_TOO_HIGH", severity: "error", message: `Le PDF dépasse la limite de ${Math.min(profile.maxPages, preflightLimits.maxPages)} pages.`, proof: `pageCount=${pageCount}`, method: "Limite de sécurité avant analyse page par page." });
-
   const pages: PreflightPage[] = [];
-  for (let index = 0; index < Math.min(pageCount, preflightLimits.maxPages); index += 1) {
+  for (let index = 0; index < pageCount; index += 1) {
     const page = document.getPage(index);
     const rotation = ((page.getRotation().angle % 360) + 360) % 360;
     const mediaBox = box(page.getMediaBox());

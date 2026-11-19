@@ -44,12 +44,12 @@ export function ProdPdfWorkspace({ file: controlledFile, onFileChange }: { file?
       {!file ? (
         <div className="prod-pdf-empty">
           <div className="prod-pdf-empty-copy"><span className="prod-pdf-empty-icon"><UploadCloud size={24} aria-hidden="true" /></span><div><strong>Commencer par importer le PDF client</strong><p>Le fichier reste sur cet appareil. Après import, l’aperçu et les actions s’ouvrent dans le même espace.</p></div></div>
-          <PdfDropzone label="Importer le PDF à contrôler" hint="PDF · 25 Mo maximum · glisser-déposer ou choisir un fichier" maxBytes={25 * 1024 * 1024} onFile={selectFile} />
+          <PdfDropzone label="Importer le PDF à contrôler" hint="PDF · glisser-déposer ou choisir un fichier" onFile={selectFile} />
         </div>
       ) : (
         <div className="prod-pdf-workbench">
           <section className="prod-pdf-viewer" aria-labelledby="prod-viewer-title">
-            <div className="prod-pdf-viewer-head"><div><div className="eyebrow">Aperçu document</div><h3 id="prod-viewer-title">Lecture du PDF</h3></div><PdfDropzone label="Changer de PDF" hint="Le nouveau fichier remplacera l’aperçu" maxBytes={25 * 1024 * 1024} onFile={selectFile} /></div>
+          <div className="prod-pdf-viewer-head"><div><div className="eyebrow">Aperçu document</div><h3 id="prod-viewer-title">Lecture du PDF</h3></div><PdfDropzone label="Changer de PDF" hint="Le nouveau fichier remplacera l’aperçu" onFile={selectFile} /></div>
             <PdfPreview file={{ blob: file }} />
           </section>
           <aside id="prod-action-rail" className="prod-action-rail" aria-labelledby="prod-actions-title">

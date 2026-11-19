@@ -46,7 +46,7 @@ export function BleedPanel({ file }: { file?: File }) {
         {!allPages && <label>Numéro<input type="number" min="1" value={page} onChange={(event) => setPage(event.target.value)} disabled={busy} /></label>}
         <div className="bleed-file">{file
           ? <button type="button" className="primary-button" disabled={busy} onClick={() => void generate(file)}>{busy ? "Préparation en cours…" : "Ajouter le fond perdu"}</button>
-          : <PdfDropzone label="Choisir le PDF à préparer" hint="15 Mo maximum · une nouvelle copie sera créée" disabled={busy} onFile={(nextFile) => void generate(nextFile)} />}</div>
+          : <PdfDropzone label="Choisir le PDF à préparer" hint="Une nouvelle copie sera créée · toutes les pages sont conservées" disabled={busy} onFile={(nextFile) => void generate(nextFile)} />}</div>
       </div>
       {busy && <p className="bleed-feedback" role="status">Rasterisation à {dpi} DPI en cours…</p>}
       {error && <p className="bleed-feedback error" role="alert">{error}</p>}
