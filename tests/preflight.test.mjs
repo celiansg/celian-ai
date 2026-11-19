@@ -6,6 +6,7 @@ import { calculateBleedOutput } from "../lib/bat/bleed.ts";
 import { generatePreflightReportPdf } from "../lib/bat/report.ts";
 import { imposePdf } from "../lib/bat/imposition.ts";
 import { addCutlineToPdf, inspectCutlineSpot } from "../lib/bat/cutline.ts";
+import { placeBatVisuals } from "../lib/bat/visual.ts";
 
 test("le calcul de fond perdu conserve le format fini et ajoute deux marges", () => {
   const output = calculateBleedOutput(841.89, 595.276, 3);
@@ -127,4 +128,19 @@ test("le tracé sur la zone de rognage conserve chaque page sélectionnée", asy
   assert.equal(result.placements[0].trimExplicit, true);
   assert.equal((await inspectCutlineSpot(result.bytes, 1)).found, false);
   assert.equal((await inspectCutlineSpot(result.bytes, 2)).name, "DieLine");
+});
+
+test("plusieurs PDF et toutes leurs pages deviennent autant de pages BAT", async () => {
+  const draft = await PDFDocument.create();
+  draft.addPage([841.89, 595.276]);
+  const first = await PDFDocument.create();
+  first.addPage([300, 200]).drawText("Visuel 1");
+  const second = await PDFDocument.create();
+  second.addPage([300, 200]).drawText("Visuel 2A");
+  second.addPage([300, 200]).drawText("Visuel 2B");
+  const bytes = await placeBatVisuals(new Uint8Array(await draft.save()).buffer, [first, second], [
+    { sourceIndex: 0, page: 1 }, { sourceIndex: 1, page: 1 }, { sourceIndex: 1, page: 2 },
+  ]);
+  const reopened = await PDFDocument.load(bytes);
+  assert.equal(reopened.getPageCount(), 3);
 });

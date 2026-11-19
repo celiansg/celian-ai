@@ -1,5 +1,5 @@
 import { degrees, PDFArray, PDFDocument, PDFName, type PDFPage } from "pdf-lib";
-import mapping from "../../knowledge/templates/BAT-template.mapping.v1.json";
+import { batVisualZone } from "./visual-mapping.ts";
 
 const maximumBytes = 15 * 1024 * 1024;
 const maximumPages = 50;
@@ -31,7 +31,7 @@ async function drawVisual(output: PDFPage, sourcePage: PDFPage, pageNumber: numb
     left: crop.x, bottom: crop.y, right: crop.x + crop.width, top: crop.y + crop.height,
   });
 
-  const zone = mapping.visual;
+  const zone = batVisualZone;
   const swapped = rotation === 90 || rotation === 270;
   const rotatedWidth = swapped ? crop.height : crop.width;
   const rotatedHeight = swapped ? crop.width : crop.height;
@@ -48,29 +48,42 @@ async function drawVisual(output: PDFPage, sourcePage: PDFPage, pageNumber: numb
 }
 
 export async function placeBatVisual(draft: ArrayBuffer, source: PDFDocument, selection: number | "all") {
-  const sourceCount = source.getPageCount();
-  if (sourceCount < 1 || sourceCount > maximumPages) throw new Error("Le PDF doit contenir entre 1 et 50 pages.");
-  if (selection !== "all" && (!Number.isInteger(selection) || selection < 1 || selection > sourceCount)) {
-    throw new Error("Sélectionnez une page du PDF client.");
+  const sourcePages = selection === "all"
+    ? Array.from({ length: source.getPageCount() }, (_, index) => ({ sourceIndex: 0, page: index + 1 }))
+    : [{ sourceIndex: 0, page: selection }];
+  return placeBatVisuals(draft, [source], sourcePages);
+}
+
+export async function placeBatVisuals(
+  draft: ArrayBuffer,
+  sources: PDFDocument[],
+  selections: { sourceIndex: number; page: number }[],
+) {
+  if (!sources.length || !selections.length) throw new Error("Sélectionnez au moins un visuel PDF.");
+  if (sources.length > maximumPages || selections.length > maximumPages) throw new Error("La préparation est limitée à 50 visuels par BAT.");
+  for (const source of sources) {
+    const sourceCount = source.getPageCount();
+    if (sourceCount < 1 || sourceCount > maximumPages) throw new Error("Chaque PDF doit contenir entre 1 et 50 pages.");
+  }
+  if (selections.some(({ sourceIndex, page }) => sourceIndex < 0 || sourceIndex >= sources.length
+    || !Number.isInteger(page) || page < 1 || page > sources[sourceIndex].getPageCount())) {
+    throw new Error("Une page sélectionnée n’existe pas dans un PDF client.");
   }
 
-  const sourcePages = selection === "all"
-    ? Array.from({ length: sourceCount }, (_, index) => index + 1)
-    : [selection];
   const document = await PDFDocument.load(draft);
   if (document.getPageCount() !== 1) throw new Error("Le modèle rempli doit contenir une seule page.");
 
   // Copy while the template page still contains only the shared fields.
-  const copies = sourcePages.length > 1
-    ? await document.copyPages(document, sourcePages.slice(1).map(() => 0))
+  const copies = selections.length > 1
+    ? await document.copyPages(document, selections.slice(1).map(() => 0))
     : [];
   const outputPages = [document.getPage(0), ...copies.map((copy) => document.addPage(copy))];
-  for (const [index, sourcePage] of sourcePages.entries()) {
+  for (const [index, selection] of selections.entries()) {
     const output = outputPages[index];
     const contents = output.node.Contents();
     // Copied pages may share the same stream array. Each page needs its own visual.
     if (contents instanceof PDFArray) output.node.set(PDFName.Contents, contents.clone(document.context));
-    await drawVisual(output, source.getPage(sourcePage - 1), sourcePage);
+    await drawVisual(output, sources[selection.sourceIndex].getPage(selection.page - 1), selection.page);
   }
 
   return document.save({ useObjectStreams: false });

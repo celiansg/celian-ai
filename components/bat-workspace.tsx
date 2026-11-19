@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 import type { PDFDocument } from "pdf-lib";
@@ -10,11 +10,13 @@ import type { LocalFileMetadata } from "@/lib/local-files/types";
 import type { LocalProject } from "@/lib/local-workspace/types";
 import { listWorkspaceProjects } from "@/lib/workspace/repository";
 import { firebaseAuth } from "@/lib/firebase/client";
+import { getAiAuthorizationHeaders } from "@/lib/firebase/authorization";
+import type { BatAssistResult } from "@/lib/bat/assist";
 import { PdfPreview } from "./pdf-preview";
 import { PdfDropzone } from "./pdf-dropzone";
 import styles from "./bat-workspace.module.css";
 
-type Source = { name: string; document: PDFDocument };
+type Source = { id: string; name: string; document: PDFDocument };
 type Draft = { name: string; blob: Blob; savedId?: string };
 
 function DraftPreview({ draft }: { draft: Draft }) {
@@ -43,13 +45,19 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
   const [projectId, setProjectId] = useState("");
   const [projectStatus, setProjectStatus] = useState<"loading" | "ready" | "error">("loading");
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [source, setSource] = useState<Source | null>(null);
+  const [sources, setSources] = useState<Source[]>([]);
   const [sourcePage, setSourcePage] = useState(1);
-  const [allSourcePages, setAllSourcePages] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [allSourcePages, setAllSourcePages] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"source" | "draft" | "history" | null>(null);
   const [error, setError] = useState("");
   const [libraryUnavailable, setLibraryUnavailable] = useState(false);
+  const [assistantText, setAssistantText] = useState("");
+  const [assistantResult, setAssistantResult] = useState<BatAssistResult | null>(null);
+  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [assistantApplied, setAssistantApplied] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     let current = true;
@@ -89,22 +97,61 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
     }
   }
 
-  async function loadSource(getFile: () => Promise<File>) {
+  async function loadSources(getFiles: () => Promise<File[]>) {
     setBusy("source");
-    setSource(null);
     setSourcePage(1);
-    setAllSourcePages(false);
+    setSourceIndex(0);
+    setAllSourcePages(true);
     setDraft(null);
     setError("");
     try {
-      const file = await getFile();
+      const files = await getFiles();
       const { openBatVisual } = await import("@/lib/bat/visual");
-      setSource({ name: file.name, document: await openBatVisual(file) });
+      const loaded: Source[] = [];
+      for (const file of files) loaded.push({ id: crypto.randomUUID(), name: file.name, document: await openBatVisual(file) });
+      setSources((items) => [...items, ...loaded]);
     } catch {
-      setError("Ce PDF n’a pas pu être ouvert. Choisissez un fichier non protégé de 15 Mo maximum et de 1 à 50 pages.");
+      setError("Un des PDF n’a pas pu être ouvert. Choisissez des fichiers non protégés de 15 Mo maximum et de 1 à 50 pages.");
     } finally {
       setBusy(null);
     }
+  }
+
+  async function runAssistant() {
+    if (assistantBusy || assistantText.trim().length < 10) {
+      setError("Collez au moins quelques informations sur le BAT avant l’analyse.");
+      return;
+    }
+    setAssistantBusy(true);
+    setAssistantApplied(false);
+    setError("");
+    try {
+      const response = await fetch("/api/bat/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...await getAiAuthorizationHeaders() },
+        body: JSON.stringify({ text: assistantText }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof payload?.error === "string" ? payload.error : "L’aide IA n’a pas pu analyser ce texte.");
+      setAssistantResult(payload as BatAssistResult);
+    } catch (caught) {
+      setAssistantResult(null);
+      setError(caught instanceof Error ? caught.message : "L’aide IA n’a pas pu analyser ce texte.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  function applyAssistantResult() {
+    if (!assistantResult || !formRef.current) return;
+    for (const [key, value] of Object.entries(assistantResult.fields)) {
+      if (!value) continue;
+      const control = formRef.current.elements.namedItem(key);
+      if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.value = value;
+    }
+    setAssistantApplied(true);
+    setDraft(null);
+    setError("");
   }
 
   async function generate(event: FormEvent<HTMLFormElement>) {
@@ -128,9 +175,12 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
       }
       const base = await response.arrayBuffer();
       let blob = new Blob([base], { type: "application/pdf" });
-      if (source) {
-        const { placeBatVisual } = await import("@/lib/bat/visual");
-        const bytes = await placeBatVisual(base, source.document, allSourcePages ? "all" : sourcePage);
+      if (sources.length) {
+        const { placeBatVisuals } = await import("@/lib/bat/visual");
+        const selections = allSourcePages
+          ? sources.flatMap((item, sourceIndex) => Array.from({ length: item.document.getPageCount() }, (_, index) => ({ sourceIndex, page: index + 1 })))
+          : [{ sourceIndex, page: sourcePage }];
+        const bytes = await placeBatVisuals(base, sources.map((item) => item.document), selections);
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       try {
@@ -163,15 +213,34 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
         </div>
       </header>
       <div className={styles.layout}>
-        <form className={styles.panel} onSubmit={generate} onChange={() => { setDraft(null); setError(""); }}>
+        <form ref={formRef} className={styles.panel} onSubmit={generate} onChange={() => { setDraft(null); setError(""); }}>
+          <section className={styles.assist} aria-labelledby="bat-assist-title">
+            <div className={styles.assistHead}>
+              <div><div className="eyebrow">Aide IA · relecture obligatoire</div><h2 id="bat-assist-title">Remplir depuis un texte</h2></div>
+              <span className={styles.assistBadge}>Gemini</span>
+            </div>
+            <p>Collez un mail, une demande client ou vos notes. L’IA propose uniquement les informations détectées ; rien n’est appliqué sans votre clic.</p>
+            <textarea value={assistantText} onChange={(event) => setAssistantText(event.target.value)} rows={5} maxLength={16_000} placeholder="Ex. Société : Atelier Martin\nCommande : CMD-248\nProduit : 500 flyers A5, couché 135 g…" disabled={assistantBusy || !available} />
+            <div className={styles.assistActions}>
+              <button type="button" className="secondary-button" onClick={() => void runAssistant()} disabled={assistantBusy || !available || assistantText.trim().length < 10}>{assistantBusy ? "Analyse du texte…" : "Analyser avec l’IA"}</button>
+              {assistantApplied && <span role="status">Champs appliqués, vérifiez-les avant génération.</span>}
+            </div>
+            {assistantResult && <div className={styles.assistResult} role="status">
+              <div className={styles.assistResultTop}><strong>Proposition {assistantResult.confidence === "high" ? "fiable" : assistantResult.confidence === "medium" ? "à vérifier" : "incertaine"}</strong><button type="button" className="primary-button" onClick={applyAssistantResult}>Appliquer aux champs</button></div>
+              <ul>{batFields.filter(([key]) => assistantResult.fields[key]).map(([key, label]) => <li key={key}><strong>{label}</strong><span>{assistantResult.fields[key]}</span></li>)}</ul>
+              {assistantResult.warnings.length > 0 && <p className={styles.assistWarnings}><strong>À vérifier :</strong> {assistantResult.warnings.join(" · ")}</p>}
+              {assistantResult.factsUsed.length > 0 && <details><summary>Sources détectées</summary><ul>{assistantResult.factsUsed.map((fact) => <li key={fact}>{fact}</li>)}</ul></details>}
+            </div>}
+          </section>
           <fieldset className={styles.form} disabled={Boolean(busy) || !available}>
             <legend>Informations du BAT</legend>
             <label className={styles.wide}>Projet
               <select value={projectId} onChange={(event) => {
                 setProjectId(event.target.value);
-                setSource(null);
+                setSources([]);
                 setSourcePage(1);
-                setAllSourcePages(false);
+                setSourceIndex(0);
+                setAllSourcePages(true);
               }} disabled={projectStatus !== "ready"}>
                 <option value="">Sans projet</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -196,39 +265,41 @@ export function BatWorkspace({ available, version, initialProjectId }: { availab
                   const id = event.currentTarget.value;
                   if (!id) return;
                   event.currentTarget.value = "";
-                  void loadSource(async () => {
+                  void loadSources(async () => {
                     const record = await getLocalFile(id);
                     if (!record) throw new Error("Fichier introuvable.");
-                    return new File([record.blob], record.name, { type: record.mimeType });
+                    return [new File([record.blob], record.name, { type: record.mimeType })];
                   });
                 }}>
-                  <option value="">Sélectionner un PDF local</option>
+                  <option value="">Ajouter un PDF depuis Fichiers</option>
                   {sourceFiles.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
                 </select>
               </label>
             )}
-            <div className={styles.wide}><PdfDropzone label="Ajouter le PDF client" hint="15 Mo maximum · PDF non protégé · 1 à 50 pages" maxBytes={15 * 1024 * 1024} disabled={Boolean(busy) || !available} onFile={(file) => void loadSource(async () => file)} /></div>
+            <div className={styles.wide}><PdfDropzone label="Ajouter un ou plusieurs PDF client" hint="Jusqu’à 15 Mo par fichier · les pages seront conservées dans l’ordre" maxBytes={15 * 1024 * 1024} multiple disabled={Boolean(busy) || !available} onFile={(file) => void loadSources(async () => [file])} onFiles={(files) => void loadSources(async () => files)} /></div>
             {libraryUnavailable && <p className={styles.wide}>La bibliothèque locale est indisponible. Vous pouvez choisir un fichier sur cet appareil.</p>}
-            {source && (
+            {sources.length > 0 && (
               <div className={styles.wide}>
-                <p className={styles.sourceName}>{source.name}</p>
-                {source.document.getPageCount() > 1 && (
-                  <label>Pages du visuel
-                    <select value={allSourcePages ? "all" : "one"} onChange={(event) => setAllSourcePages(event.target.value === "all")}>
-                      <option value="one">Une page</option>
-                      <option value="all">Toutes les pages ({source.document.getPageCount()})</option>
-                    </select>
-                  </label>
-                )}
-                {allSourcePages ? <p>Une page de BAT par page client, avec les mêmes informations sur chaque page.</p> : <label>Page à insérer
-                  <select value={sourcePage} onChange={(event) => setSourcePage(Number(event.target.value))}>
-                    {source.document.getPages().map((_, index) => <option key={index} value={index + 1}>Page {index + 1}</option>)}
+                <p className={styles.sourceName}><strong>{sources.length} fichier{sources.length > 1 ? "s" : ""}</strong> · {sources.reduce((total, item) => total + item.document.getPageCount(), 0)} page{sources.reduce((total, item) => total + item.document.getPageCount(), 0) > 1 ? "s" : ""} sélectionnée{sources.length > 1 || sources.some((item) => item.document.getPageCount() > 1) ? "s" : ""}</p>
+                <ul className={styles.sourceList}>{sources.map((item, index) => <li key={item.id}><span>{item.name} · {item.document.getPageCount()} page{item.document.getPageCount() > 1 ? "s" : ""}</span><button type="button" className="text-action" onClick={() => { setSources((items) => items.filter((_, current) => current !== index)); setSourceIndex(0); setSourcePage(1); setDraft(null); }}>Retirer</button></li>)}</ul>
+                <label>Pages à afficher sur les BAT
+                  <select value={allSourcePages ? "all" : "one"} onChange={(event) => setAllSourcePages(event.target.value === "all")}>
+                    <option value="all">Toutes les pages de tous les fichiers</option>
+                    <option value="one">Une seule page</option>
                   </select>
-                </label>}
-                <button type="button" className="text-action" onClick={() => { setSource(null); setDraft(null); }}>Retirer le visuel</button>
+                </label>
+                {allSourcePages ? <p>Le BAT comportera une page par page source, dans l’ordre des fichiers et des pages.</p> : <div className={styles.sourceSelection}><label>Fichier
+                  <select value={sourceIndex} onChange={(event) => { setSourceIndex(Number(event.target.value)); setSourcePage(1); }}>
+                    {sources.map((item, index) => <option key={item.id} value={index}>{item.name}</option>)}
+                  </select>
+                </label><label>Page à insérer
+                  <select value={sourcePage} onChange={(event) => setSourcePage(Number(event.target.value))}>
+                    {sources[sourceIndex]?.document.getPages().map((_, index) => <option key={index} value={index + 1}>Page {index + 1}</option>)}
+                  </select>
+                </label></div>}
               </div>
             )}
-            <p className={styles.wide}>Facultatif · 15 Mo maximum · La page est centrée et ajustée sans recadrage. Les annotations et formulaires ne sont pas repris. Le fichier reste sur cet appareil.</p>
+            <p className={styles.wide}>Facultatif · chaque page source devient une page de BAT quand « Toutes les pages » est sélectionné. Les pages sont centrées et ajustées sans recadrage ; le fichier reste sur cet appareil.</p>
           </fieldset>
           {!available && <p role="alert">Le modèle officiel est introuvable. Placez-le dans le dossier des modèles du projet.</p>}
           {error && <p className="file-feedback error" role="alert">{error}</p>}
