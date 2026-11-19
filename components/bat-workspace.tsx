@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 import type { PDFDocument } from "pdf-lib";
@@ -12,6 +12,7 @@ import { listWorkspaceProjects } from "@/lib/workspace/repository";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { getAiAuthorizationHeaders } from "@/lib/firebase/authorization";
 import type { BatAssistResult } from "@/lib/bat/assist";
+import type { BatVisualLayout } from "@/lib/bat/visual";
 import { PdfPreview } from "./pdf-preview";
 import { PdfDropzone } from "./pdf-dropzone";
 import styles from "./bat-workspace.module.css";
@@ -56,6 +57,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
   const [sourcePage, setSourcePage] = useState(1);
   const [sourceIndex, setSourceIndex] = useState(0);
   const [allSourcePages, setAllSourcePages] = useState(true);
+  const [visualLayout, setVisualLayout] = useState<BatVisualLayout>("one_per_page");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"source" | "draft" | "history" | null>(null);
   const [error, setError] = useState("");
@@ -105,7 +107,8 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
     }
   }
 
-  async function loadSources(getFiles: () => Promise<File[]>) {
+  const loadSources = useCallback(async (getFiles: () => Promise<File[]>) => {
+    const isFirstSource = sources.length === 0;
     setBusy("source");
     setSourcePage(1);
     setSourceIndex(0);
@@ -116,18 +119,19 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       const files = await getFiles();
       const loaded = await openSourceFiles(files);
       setSources((items) => [...items, ...loaded]);
+      if (isFirstSource && loaded.length === 1 && loaded[0].document.getPageCount() === 2) setVisualLayout("recto_verso");
     } catch {
       setError("Un des PDF n’a pas pu être ouvert. Vérifiez qu’il n’est pas protégé ou corrompu.");
     } finally {
       setBusy(null);
     }
-  }
+  }, [sources.length]);
 
   useEffect(() => {
     if (!initialSourceFile || initialSourceLoaded.current === initialSourceFile) return;
     initialSourceLoaded.current = initialSourceFile;
     void loadSources(async () => [initialSourceFile]);
-  }, [initialSourceFile]);
+  }, [initialSourceFile, loadSources]);
 
   async function runAssistant() {
     if (assistantBusy || assistantText.trim().length < 10) {
@@ -192,7 +196,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
         const selections = allSourcePages
           ? sources.flatMap((item, sourceIndex) => Array.from({ length: item.document.getPageCount() }, (_, index) => ({ sourceIndex, page: index + 1 })))
           : [{ sourceIndex, page: sourcePage }];
-        const bytes = await placeBatVisuals(base, sources.map((item) => item.document), selections);
+        const bytes = await placeBatVisuals(base, sources.map((item) => item.document), selections, visualLayout);
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       try {
@@ -253,6 +257,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                 setSourcePage(1);
                 setSourceIndex(0);
                 setAllSourcePages(true);
+                setVisualLayout("one_per_page");
               }} disabled={projectStatus !== "ready"}>
                 <option value="">Sans projet</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -300,6 +305,15 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                     <option value="one">Une seule page</option>
                   </select>
                 </label>
+                <label>Présentation du BAT
+                  <select value={visualLayout} onChange={(event) => setVisualLayout(event.target.value as BatVisualLayout)}>
+                    <option value="one_per_page">Une page de BAT par page source</option>
+                    <option value="recto_verso">Recto-verso · 2 pages par modèle</option>
+                  </select>
+                </label>
+                <p>{visualLayout === "recto_verso"
+                  ? "Les pages sont regroupées deux par deux : RECTO à gauche, VERSO à droite. Jusqu’à deux modèles sont présentés par page de BAT."
+                  : "Chaque page source devient une page de présentation séparée."}</p>
                 {allSourcePages ? <p>Le BAT comportera une page par page source, dans l’ordre des fichiers et des pages.</p> : <div className={styles.sourceSelection}><label>Fichier
                   <select value={sourceIndex} onChange={(event) => { setSourceIndex(Number(event.target.value)); setSourcePage(1); }}>
                     {sources.map((item, index) => <option key={item.id} value={index}>{item.name}</option>)}
