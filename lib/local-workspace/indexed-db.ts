@@ -2,6 +2,8 @@
 
 import type {
   LocalActivity,
+  LocalAgentRun,
+  LocalPreflightReport,
   LocalProject,
   LocalProjectStatus,
   LocalTask,
@@ -14,11 +16,13 @@ import type { MailDraft, MailVersion } from "../mail/history";
 // Séparé du store files géré par lib/local-files pour éviter les migrations
 // croisées entre deux schémas IndexedDB indépendants.
 const DB_NAME = "agents-local-data";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const PROJECTS_STORE = "projects";
 const TASKS_STORE = "tasks";
 const ACTIVITIES_STORE = "activities";
 const MAIL_VERSIONS_STORE = "mailVersions";
+const PREFLIGHT_REPORTS_STORE = "preflightReports";
+const AGENT_RUNS_STORE = "agentRuns";
 
 function ensureBrowser() {
   if (typeof window === "undefined" || !window.indexedDB) {
@@ -53,6 +57,16 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(MAIL_VERSIONS_STORE)) {
         database.createObjectStore(MAIL_VERSIONS_STORE, { keyPath: "id" });
+      }
+      if (!database.objectStoreNames.contains(PREFLIGHT_REPORTS_STORE)) {
+        const store = database.createObjectStore(PREFLIGHT_REPORTS_STORE, { keyPath: "id" });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("fileSha256", "fileSha256", { unique: false });
+      }
+      if (!database.objectStoreNames.contains(AGENT_RUNS_STORE)) {
+        const store = database.createObjectStore(AGENT_RUNS_STORE, { keyPath: "id" });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("agentId", "agentId", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -109,6 +123,30 @@ export async function saveLocalMailVersion(draft: MailDraft, batId?: string) {
     batId,
   };
   return put(MAIL_VERSIONS_STORE, version);
+}
+
+export async function saveLocalPreflightReport(input: Omit<LocalPreflightReport, "id" | "createdAt">) {
+  const report: LocalPreflightReport = { ...input, id: makeId("preflight"), createdAt: new Date().toISOString() };
+  return put(PREFLIGHT_REPORTS_STORE, report);
+}
+
+export async function listLocalPreflightReports() {
+  const reports = await readAll<LocalPreflightReport>(PREFLIGHT_REPORTS_STORE);
+  return reports.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function deleteLocalPreflightReport(id: string) {
+  await remove(PREFLIGHT_REPORTS_STORE, id);
+}
+
+export async function saveLocalAgentRun(input: Omit<LocalAgentRun, "id" | "createdAt">) {
+  const run: LocalAgentRun = { ...input, id: makeId("run"), createdAt: new Date().toISOString() };
+  return put(AGENT_RUNS_STORE, run);
+}
+
+export async function listLocalAgentRuns() {
+  const runs = await readAll<LocalAgentRun>(AGENT_RUNS_STORE);
+  return runs.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 async function remove(storeName: string, id: string) {
