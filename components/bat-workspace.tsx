@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 import type { PDFDocument } from "pdf-lib";
-import { batFields } from "@/lib/bat/fields";
+import { batFields, type BatDraftInput } from "@/lib/bat/fields";
 import { getLocalFile, listLocalFiles, saveLocalBat } from "@/lib/local-files/indexed-db";
 import type { LocalFileMetadata } from "@/lib/local-files/types";
 import type { LocalProject } from "@/lib/local-workspace/types";
@@ -18,6 +18,11 @@ import { PdfDropzone } from "./pdf-dropzone";
 import styles from "./bat-workspace.module.css";
 
 type Source = { id: string; name: string; document: PDFDocument };
+type VisualSelection = { sourceIndex: number; page: number };
+const variantFieldDefinitions = [
+  ["file", "Fichier"], ["product", "Produit"], ["material", "Matière"],
+  ["finish", "Finition"], ["format", "Format"], ["quantity", "Quantité"], ["remarks", "Remarques"],
+] as const satisfies ReadonlyArray<[keyof BatDraftInput, string]>;
 type Draft = { name: string; blob: Blob; savedId?: string };
 
 async function openSourceFiles(files: File[]) {
@@ -25,6 +30,26 @@ async function openSourceFiles(files: File[]) {
   const loaded: Source[] = [];
   for (const file of files) loaded.push({ id: crypto.randomUUID(), name: file.name, document: await openBatVisual(file) });
   return loaded;
+}
+
+function getVisualSelections(sources: Source[], allSourcePages: boolean, sourceIndex: number, sourcePage: number): VisualSelection[] {
+  if (!sources.length) return [];
+  return allSourcePages
+    ? sources.flatMap((item, currentSourceIndex) => Array.from({ length: item.document.getPageCount() }, (_, index) => ({ sourceIndex: currentSourceIndex, page: index + 1 })))
+    : [{ sourceIndex, page: sourcePage }];
+}
+
+function getVisualGroupSize(layout: BatVisualLayout) {
+  return layout === "one_per_page" ? 1 : layout === "recto_verso_compact" ? 4 : 2;
+}
+
+function groupVisualSelections(selections: VisualSelection[], layout: BatVisualLayout) {
+  const groupSize = getVisualGroupSize(layout);
+  return Array.from({ length: Math.ceil(selections.length / groupSize) }, (_, index) => selections.slice(index * groupSize, index * groupSize + groupSize));
+}
+
+function describeVisualGroup(group: VisualSelection[], sources: Source[]) {
+  return group.map(({ sourceIndex, page }) => `${sources[sourceIndex]?.name ?? "PDF"} · page ${page}`).join(" + ");
 }
 
 function DraftPreview({ draft }: { draft: Draft }) {
@@ -58,6 +83,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
   const [sourceIndex, setSourceIndex] = useState(0);
   const [allSourcePages, setAllSourcePages] = useState(true);
   const [visualLayout, setVisualLayout] = useState<BatVisualLayout>("one_per_page");
+  const [variantFields, setVariantFields] = useState<Record<number, BatDraftInput>>({});
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"source" | "draft" | "history" | null>(null);
   const [error, setError] = useState("");
@@ -119,6 +145,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       const files = await getFiles();
       const loaded = await openSourceFiles(files);
       setSources((items) => [...items, ...loaded]);
+      if (isFirstSource) setVariantFields({});
       if (isFirstSource && loaded.length === 1 && loaded[0].document.getPageCount() === 2) setVisualLayout("recto_verso");
     } catch {
       setError("Un des PDF n’a pas pu être ouvert. Vérifiez qu’il n’est pas protégé ou corrompu.");
@@ -175,6 +202,11 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
     if (busy || !available || projectStatus === "loading") return;
     const form = new FormData(event.currentTarget);
     const fields = Object.fromEntries(batFields.map(([key]) => [key, String(form.get(key) ?? "").trim()]));
+    const selections = getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage);
+    const groups = groupVisualSelections(selections, visualLayout);
+    const pageInputs = groups.length
+      ? groups.map((_, index) => ({ ...fields, ...(variantFields[index] ?? {}) }))
+      : [fields];
     setError("");
     setDraft(null);
     setBusy("draft");
@@ -182,7 +214,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       const response = await fetch("/api/bat/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
+        body: JSON.stringify(pageInputs.length > 1 ? { pages: pageInputs } : pageInputs[0]),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -193,9 +225,6 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
       let blob = new Blob([base], { type: "application/pdf" });
       if (sources.length) {
         const { placeBatVisuals } = await import("@/lib/bat/visual");
-        const selections = allSourcePages
-          ? sources.flatMap((item, sourceIndex) => Array.from({ length: item.document.getPageCount() }, (_, index) => ({ sourceIndex, page: index + 1 })))
-          : [{ sourceIndex, page: sourcePage }];
         const bytes = await placeBatVisuals(base, sources.map((item) => item.document), selections, visualLayout);
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
@@ -258,6 +287,7 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                 setSourceIndex(0);
                 setAllSourcePages(true);
                 setVisualLayout("one_per_page");
+                setVariantFields({});
               }} disabled={projectStatus !== "ready"}>
                 <option value="">Sans projet</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -308,12 +338,34 @@ export function BatWorkspace({ available, version, initialProjectId, initialSour
                 <label>Présentation du BAT
                   <select value={visualLayout} onChange={(event) => setVisualLayout(event.target.value as BatVisualLayout)}>
                     <option value="one_per_page">Une page de BAT par page source</option>
-                    <option value="recto_verso">Recto-verso · 2 pages par modèle</option>
+                    <option value="recto_verso">Recto-verso · 1 modèle par page BAT</option>
+                    <option value="recto_verso_compact">Recto-verso compact · 2 modèles par page BAT</option>
                   </select>
                 </label>
                 <p>{visualLayout === "recto_verso"
-                  ? "Les pages sont regroupées deux par deux : RECTO à gauche, VERSO à droite. Jusqu’à deux modèles sont présentés par page de BAT."
-                  : "Chaque page source devient une page de présentation séparée."}</p>
+                  ? "Les pages sont regroupées deux par deux : RECTO à gauche, VERSO à droite. Chaque modèle reçoit sa propre page et ses propres informations."
+                  : visualLayout === "recto_verso_compact"
+                    ? "Les pages sont regroupées deux par deux, avec jusqu’à deux modèles par page. Utilisez ce mode si les informations sont identiques."
+                    : "Chaque page source devient une page de présentation séparée."}</p>
+                {groupVisualSelections(getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage), visualLayout).length > 1 && (
+                  <div className={styles.variantSection}>
+                    <div><strong>Informations variables par BAT</strong><p>Les champs généraux restent hérités du formulaire principal. Renseignez seulement les différences de matière, format, quantité ou produit.</p></div>
+                    {groupVisualSelections(getVisualSelections(sources, allSourcePages, sourceIndex, sourcePage), visualLayout).map((group, index) => (
+                      <details className={styles.variantCard} key={`variant-${index}`} open={index === 0}>
+                        <summary>BAT {index + 1} · {describeVisualGroup(group, sources)}</summary>
+                        <div className={styles.variantGrid}>
+                          {variantFieldDefinitions.map(([key, label]) => (
+                            <label key={key} className={key === "remarks" ? styles.wide : undefined}>{label}
+                              {key === "remarks"
+                                ? <textarea rows={2} value={variantFields[index]?.[key] ?? ""} placeholder="Identique au formulaire principal" onChange={(event) => setVariantFields((current) => ({ ...current, [index]: { ...current[index], [key]: event.target.value } }))} />
+                                : <input value={variantFields[index]?.[key] ?? ""} placeholder="Identique au formulaire principal" onChange={(event) => setVariantFields((current) => ({ ...current, [index]: { ...current[index], [key]: event.target.value } }))} />}
+                            </label>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                )}
                 {allSourcePages ? <p>Le BAT comportera une page par page source, dans l’ordre des fichiers et des pages.</p> : <div className={styles.sourceSelection}><label>Fichier
                   <select value={sourceIndex} onChange={(event) => { setSourceIndex(Number(event.target.value)); setSourcePage(1); }}>
                     {sources.map((item, index) => <option key={item.id} value={index}>{item.name}</option>)}

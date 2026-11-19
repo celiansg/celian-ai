@@ -145,7 +145,7 @@ test("plusieurs PDF et toutes leurs pages deviennent autant de pages BAT", async
   assert.equal(reopened.getPageCount(), 3);
 });
 
-test("le mode recto-verso regroupe quatre pages en deux modèles sur une page de BAT", async () => {
+test("le mode recto-verso sépare deux modèles pour permettre des informations variables", async () => {
   const draft = await PDFDocument.create();
   draft.addPage([841.89, 595.276]);
   const source = await PDFDocument.create();
@@ -155,5 +155,11 @@ test("le mode recto-verso regroupe quatre pages en deux modèles sur une page de
     { sourceIndex: 0, page: 3 }, { sourceIndex: 0, page: 4 },
   ], "recto_verso");
   const reopened = await PDFDocument.load(bytes);
-  assert.equal(reopened.getPageCount(), 1);
+  assert.equal(reopened.getPageCount(), 2);
+
+  const compactBytes = await placeBatVisuals(new Uint8Array(await draft.save()).buffer, [source], [
+    { sourceIndex: 0, page: 1 }, { sourceIndex: 0, page: 2 },
+    { sourceIndex: 0, page: 3 }, { sourceIndex: 0, page: 4 },
+  ], "recto_verso_compact");
+  assert.equal((await PDFDocument.load(compactBytes)).getPageCount(), 1);
 });

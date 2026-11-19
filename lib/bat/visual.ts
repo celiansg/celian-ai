@@ -1,8 +1,18 @@
 import { degrees, PDFArray, PDFDocument, PDFName, rgb, StandardFonts, type PDFPage } from "pdf-lib";
 import { batVisualZone } from "./visual-mapping.ts";
 
-export type BatVisualLayout = "one_per_page" | "recto_verso";
+export type BatVisualLayout = "one_per_page" | "recto_verso" | "recto_verso_compact";
 type VisualBox = { x: number; y: number; width: number; height: number };
+
+export function getBatVisualGroupSize(layout: BatVisualLayout) {
+  if (layout === "recto_verso") return 2;
+  if (layout === "recto_verso_compact") return 4;
+  return 1;
+}
+
+export function getBatVisualPageCount(selectionCount: number, layout: BatVisualLayout) {
+  return Math.max(1, Math.ceil(selectionCount / getBatVisualGroupSize(layout)));
+}
 
 export async function openBatVisual(file: File) {
   if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error("Sélectionnez un fichier PDF.");
@@ -84,21 +94,23 @@ export async function placeBatVisuals(
   }
 
   const document = await PDFDocument.load(draft);
-  if (document.getPageCount() !== 1) throw new Error("Le modèle rempli doit contenir une seule page.");
-
-  const outputPageCount = layout === "recto_verso" ? Math.ceil(selections.length / 4) : selections.length;
+  const outputPageCount = getBatVisualPageCount(selections.length, layout);
+  if (document.getPageCount() !== 1 && document.getPageCount() !== outputPageCount) {
+    throw new Error("Le nombre de pages du BAT ne correspond pas au nombre de présentations demandé.");
+  }
   // Copy while the template page still contains only the shared fields.
-  const copies = outputPageCount > 1
+  const copies = document.getPageCount() === 1 && outputPageCount > 1
     ? await document.copyPages(document, Array.from({ length: outputPageCount - 1 }, () => 0))
     : [];
-  const outputPages = [document.getPage(0), ...copies.map((copy) => document.addPage(copy))];
+  const outputPages = copies.length ? [document.getPage(0), ...copies.map((copy) => document.addPage(copy))] : document.getPages();
   for (const [pageIndex, output] of outputPages.entries()) {
     const contents = output.node.Contents();
     // Copied pages may share the same stream array. Each page needs its own visual.
     if (contents instanceof PDFArray) output.node.set(PDFName.Contents, contents.clone(document.context));
-    const pageSelections = layout === "recto_verso"
-      ? selections.slice(pageIndex * 4, pageIndex * 4 + 4)
-      : [selections[pageIndex]];
+    const groupSize = getBatVisualGroupSize(layout);
+    const pageSelections = layout === "one_per_page"
+      ? selections.slice(pageIndex, pageIndex + 1)
+      : selections.slice(pageIndex * groupSize, pageIndex * groupSize + groupSize);
     if (layout === "one_per_page") {
       const selection = pageSelections[0];
       await drawVisual(output, sources[selection.sourceIndex].getPage(selection.page - 1), selection.page, batVisualZone);
@@ -116,7 +128,8 @@ export async function placeBatVisuals(
       for (let side = 0; side < 2; side += 1) {
         const selection = pair[side];
         const box = { x: batVisualZone.x + side * (columnWidth + gap), y, width: columnWidth, height: rowHeight };
-        const label = `MODÈLE ${pageIndex * 2 + pairIndex + 1} · ${side === 0 ? "RECTO" : "VERSO"}`;
+        const modelNumber = layout === "recto_verso_compact" ? pageIndex * 2 + pairIndex + 1 : pageIndex + 1;
+        const label = `MODÈLE ${modelNumber} · ${side === 0 ? "RECTO" : "VERSO"}`;
         if (selection) {
           await drawVisual(output, sources[selection.sourceIndex].getPage(selection.page - 1), selection.page, box, label, labelFont);
         } else {

@@ -37,13 +37,7 @@ function wrapLine(value: string, fits: (text: string) => boolean) {
   return [...lines, current];
 }
 
-export async function generateBatDraft(input: BatDraftInput) {
-  if (!existsSync(BAT_TEMPLATE_PATH)) throw new Error("Le template BAT officiel est introuvable.");
-  const source = await readFile(BAT_TEMPLATE_PATH);
-  const document = await PDFDocument.load(source);
-  if (document.getPageCount() !== 1) throw new Error("Le template BAT attendu doit contenir exactement une page.");
-  const page = document.getPage(0);
-  const font = await document.embedFont(StandardFonts.Helvetica);
+function drawBatPage(document: PDFDocument, page: ReturnType<PDFDocument["getPage"]>, input: BatDraftInput, font: Awaited<ReturnType<PDFDocument["embedFont"]>>) {
   const valueOptions = { size: 8.5, color: rgb(0.07, 0.1, 0.18), font };
   function measure(value: string, label: string) {
     try {
@@ -73,6 +67,18 @@ export async function generateBatDraft(input: BatDraftInput) {
   remarks.forEach((line, index) => {
     if (line) page.drawText(line, { ...valueOptions, x: remarksField.x, y: remarksField.y - index * remarksField.lineHeight });
   });
+}
+
+export async function generateBatDraftPages(inputs: BatDraftInput[]) {
+  if (!inputs.length) throw new Error("Au moins une page de BAT est nécessaire.");
+  if (!existsSync(BAT_TEMPLATE_PATH)) throw new Error("Le template BAT officiel est introuvable.");
+  const source = await readFile(BAT_TEMPLATE_PATH);
+  const document = await PDFDocument.load(source);
+  if (document.getPageCount() !== 1) throw new Error("Le template BAT attendu doit contenir exactement une page.");
+  const copies = inputs.length > 1 ? await document.copyPages(document, inputs.slice(1).map(() => 0)) : [];
+  const pages = [document.getPage(0), ...copies.map((copy) => document.addPage(copy))];
+  const font = await document.embedFont(StandardFonts.Helvetica);
+  inputs.forEach((input, index) => drawBatPage(document, pages[index], input, font));
 
   // The source's PDF/X declaration does not apply to the modified draft.
   document.catalog.delete(PDFName.of("Metadata"));
@@ -82,4 +88,8 @@ export async function generateBatDraft(input: BatDraftInput) {
   document.setTitle("BAT — Brouillon à relire");
   // Le fichier source conserve ses éléments graphiques ; le texte est ajouté sur une copie.
   return document.save({ useObjectStreams: false });
+}
+
+export async function generateBatDraft(input: BatDraftInput) {
+  return generateBatDraftPages([input]);
 }

@@ -100,6 +100,16 @@
 .sourceList li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 9px; background: #f8faff; border-radius: 8px; font-size: 11px; }
 .sourceList li span { min-width: 0; overflow-wrap: anywhere; color: #52617d; }
 .sourceSelection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.variantSection { display: grid; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid #dce5f8; border-radius: 10px; background: #f7f9ff; }
+.variantSection > div:first-child { display: grid; gap: 4px; }
+.variantSection > div:first-child strong { color: var(--ink); font-size: 13px; }
+.variantSection > div:first-child p { font-size: 11px; line-height: 1.4; }
+.variantCard { border: 1px solid #dce5f8; border-radius: 9px; background: #fff; }
+.variantCard summary { padding: 10px; color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.variantGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 0 10px 10px; }
+.variantGrid label { display: grid; gap: 4px; min-width: 0; color: #52617d; font-size: 11px; font-weight: 650; }
+.variantGrid input, .variantGrid textarea { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: #f8faff; color: var(--ink); font: inherit; font-size: 14px; font-weight: 400; }
+.variantGrid textarea { resize: vertical; }
 .form .check { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .form .check input { flex: none; padding: 0; width: 18px; height: 18px; min-height: 0; }
 
@@ -111,5 +121,6 @@
   .form { grid-template-columns: minmax(0, 1fr); }
   .panel { padding: 14px; }
   .sourceSelection { grid-template-columns: minmax(0, 1fr); }
+  .variantGrid { grid-template-columns: minmax(0, 1fr); }
   .assistResult li { grid-template-columns: 1fr; gap: 3px; }
 }

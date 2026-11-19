@@ -12,7 +12,7 @@ export const batFields = [
   ["remarks", "Remarques", 2000],
 ] as const;
 
-export type BatDraftInput = Partial<Record<(typeof batFields)[number][0], string>>;
+export type BatDraftInput = Partial<Record<(typeof batFields)[number][0], string | undefined>>;
 
 export function filenameSegment(value: string, fallback: string) {
   return value.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-zA-Z0-9-]+/g, "-")

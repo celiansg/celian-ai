@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BatFieldError, generateBatDraft } from "@/lib/bat/template";
+import { BatFieldError, generateBatDraft, generateBatDraftPages } from "@/lib/bat/template";
 
 export const runtime = "nodejs";
 
@@ -17,13 +17,22 @@ const batDraftSchema = z.object({
   remarks: z.string().max(2000).optional(),
 });
 
+const batDraftPagesSchema = z.object({ pages: z.array(batDraftSchema).min(1) });
+
 export async function POST(request: Request) {
-  const input = batDraftSchema.safeParse(await request.json().catch(() => null));
-  if (!input.success) {
+  const payload = await request.json().catch(() => null);
+  const hasPages = typeof payload === "object" && payload !== null && "pages" in payload;
+  const pages = hasPages ? batDraftPagesSchema.safeParse(payload) : null;
+  const input = hasPages ? null : batDraftSchema.safeParse(payload);
+  if ((hasPages && !pages?.success) || (!hasPages && !input?.success)) {
     return Response.json({ error: "Les champs du BAT sont invalides ou trop longs.", status: "not_generated" }, { status: 400 });
   }
   try {
-    const bytes = await generateBatDraft(input.data);
+    const bytes = pages?.success
+      ? await generateBatDraftPages(pages.data.pages)
+      : input?.success
+        ? await generateBatDraft(input.data)
+        : (() => { throw new Error("Les champs du BAT sont invalides."); })();
     return new Response(Buffer.from(bytes), {
       status: 200,
       headers: {
