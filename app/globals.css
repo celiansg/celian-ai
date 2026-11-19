@@ -371,3 +371,22 @@ a, button, input, select { touch-action: manipulation; }
 @media (max-width: 420px) { .bat-steps { gap: 6px; }.bat-steps a { padding: 9px; column-gap: 7px; }.bat-steps strong { font-size: 10px; }.bat-steps small { font-size: 9px; } }
 .pdf-dropzone { position: relative; min-height: 64px; display: flex; align-items: center; gap: 10px; padding: 10px 11px; color: var(--muted); background: #fbfcff; border: 1px dashed #cbd8eb; border-radius: 11px; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }.pdf-dropzone:hover, .pdf-dropzone:focus-visible, .pdf-dropzone.is-dragging { color: var(--ink); background: #f4f8ff; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(49,120,246,.1); outline: none; }.pdf-dropzone.is-disabled { opacity: .6; cursor: default; box-shadow: none; }.pdf-dropzone-icon { width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-items: center; color: var(--blue); background: #eaf2ff; border-radius: 9px; }.pdf-dropzone-copy { min-width: 0; display: grid; gap: 2px; flex: 1; }.pdf-dropzone-copy strong { overflow: hidden; color: var(--ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.pdf-dropzone-copy span { overflow: hidden; color: #71809a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.pdf-dropzone-copy small { color: #99a5b8; font-size: 9px; }.pdf-dropzone-button { min-height: 32px; flex: 0 0 auto; padding-inline: 10px; }.pdf-dropzone-error { position: absolute; left: 0; right: 0; bottom: -18px; color: #b42318; font-size: 10px; font-weight: 600; }.pdf-dropzone + .file-feedback { margin-top: 20px; }
 @media (max-width: 520px) { .pdf-dropzone { align-items: flex-start; }.pdf-dropzone-button { align-self: center; }.pdf-dropzone-copy span { white-space: normal; line-height: 1.35; } }
+.bat-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.cutline-panel { margin-bottom: 16px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }
+.cutline-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cutline-head h2 { display: flex; align-items: center; gap: 7px; margin: 2px 0 5px; font-size: 18px; }
+.cutline-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.cutline-head > svg { color: #e47725; }
+.cutline-warning { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; padding: 10px 12px; color: #805400; background: #fff8e8; border-radius: 10px; font-size: 12px; line-height: 1.45; }
+.cutline-warning svg { flex: 0 0 auto; margin-top: 1px; }
+.cutline-controls { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-top: 14px; }
+.cutline-controls label { display: grid; gap: 5px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.cutline-controls input, .cutline-controls select { width: 100%; min-height: 40px; box-sizing: border-box; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: #f8faff; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; }
+.cutline-controls .cutline-file { grid-column: 1 / -1; }
+.cutline-feedback { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+.cutline-feedback.error { color: #b42318; }
+.cutline-result { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 14px; padding: 11px 12px; color: #087443; background: #effbf5; border-radius: 10px; font-size: 12px; }
+.cutline-result strong { display: flex; align-items: center; gap: 6px; }
+.cutline-result span, .cutline-result small { display: block; margin-top: 3px; color: #52617d; line-height: 1.4; }
+.cutline-result small { max-width: 760px; color: #6d7890; }
+@media (max-width: 700px) { .cutline-controls { grid-template-columns: minmax(0, 1fr); }.cutline-controls .cutline-file { grid-column: auto; } }

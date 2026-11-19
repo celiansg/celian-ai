@@ -5,6 +5,7 @@ import { preflightPdf, preflightProfiles } from "../lib/bat/preflight.ts";
 import { calculateBleedOutput } from "../lib/bat/bleed.ts";
 import { generatePreflightReportPdf } from "../lib/bat/report.ts";
 import { imposePdf } from "../lib/bat/imposition.ts";
+import { addCutlineToPdf, inspectCutlineSpot } from "../lib/bat/cutline.ts";
 
 test("le calcul de fond perdu conserve le format fini et ajoute deux marges", () => {
   const output = calculateBleedOutput(841.89, 595.276, 3);
@@ -85,4 +86,45 @@ test("l’imposition N-up simple produit une feuille vectorielle", async () => {
   const reopened = await PDFDocument.load(result.bytes);
   assert.equal(reopened.getPageCount(), 1);
   assert.equal(result.placedPages, 4);
+});
+
+test("le tracé de découpe produit une vraie séparation spot centrée", async () => {
+  const document = await PDFDocument.create();
+  const page = document.addPage([600, 400]);
+  page.setTrimBox(50, 50, 500, 300);
+  const result = await addCutlineToPdf(new Uint8Array(await document.save()), {
+    mode: "custom",
+    widthMm: 100,
+    heightMm: 50,
+    spotName: "CutContour",
+    lineWidthPt: 0.25,
+    pages: "all",
+  });
+  assert.equal(result.placements.length, 1);
+  assert.equal(Math.round(result.placements[0].x * 100) / 100, 158.27);
+  assert.equal(Math.round(result.placements[0].y * 100) / 100, 129.13);
+  const spot = await inspectCutlineSpot(result.bytes);
+  assert.equal(spot.found, true);
+  assert.equal(spot.name, "CutContour");
+  const reopened = await PDFDocument.load(result.bytes);
+  assert.equal(reopened.getPageCount(), 1);
+});
+
+test("le tracé sur la zone de rognage conserve chaque page sélectionnée", async () => {
+  const document = await PDFDocument.create();
+  const first = document.addPage([400, 300]);
+  first.setTrimBox(10, 10, 380, 280);
+  const second = document.addPage([400, 300]);
+  second.setTrimBox(10, 10, 380, 280);
+  const result = await addCutlineToPdf(new Uint8Array(await document.save()), {
+    mode: "trim",
+    spotName: "DieLine",
+    lineWidthPt: 0.5,
+    pages: 2,
+  });
+  assert.equal(result.placements.length, 1);
+  assert.equal(result.placements[0].page, 2);
+  assert.equal(result.placements[0].trimExplicit, true);
+  assert.equal((await inspectCutlineSpot(result.bytes, 1)).found, false);
+  assert.equal((await inspectCutlineSpot(result.bytes, 2)).name, "DieLine");
 });

@@ -23,3 +23,7 @@ Après un contrôle, l’interface propose un rapport JSON (données structurée
 Les images sont actuellement inventoriées avec leurs dimensions, filtre et espace colorimétrique déclaré. Cela ne constitue pas encore un contrôle de DPI effectif : une image de 1200 px peut être placée à des tailles différentes selon le contenu PDF.
 
 Les valeurs absentes restent configurables. Aucun profil ne doit inventer un grammage, un format fini, une convention de ton direct ou une validation PDF/X.
+
+## Tracé de découpe
+
+L’outil `/bat` peut ajouter un rectangle vectoriel en séparation PDF `Separation` (ton direct) avec surimpression. Le nom par défaut est `CutContour`, mais il doit être remplacé si le RIP ou le fabricant attend une autre convention. La présence de la ressource PDF est testée côté application ; cela ne remplace pas un contrôle de séparation, de surimpression et de nommage dans le RIP de production.

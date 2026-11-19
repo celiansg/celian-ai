@@ -32,7 +32,9 @@ L’atelier `/mail` produit un brouillon éditable à partir de modèles locaux 
 
 ## Phase 6 — Découpe
 
-Créer géométrie validée et vraie séparation spot PDF, avec profils machine configurables.
+État : tracé rectangulaire vectoriel disponible sur `/bat`. L’utilisateur peut le placer sur la zone de rognage ou définir une largeur et une hauteur en millimètres ; le rectangle personnalisé est centré dans le TrimBox. Le nom du ton direct, l’épaisseur, la page cible ou toutes les pages sont configurables. L’export installe une vraie séparation PDF `Separation` avec surimpression et signale qu’un contrôle RIP reste nécessaire.
+
+Reste : géométries libres ou importées, angles/arrondis, trous, profils machine et validation visuelle automatisée de la séparation.
 
 ## Phase 7 — BTS et orchestration reliée
 
